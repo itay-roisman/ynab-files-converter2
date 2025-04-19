@@ -28,32 +28,212 @@
 }
 
 .main {
+  min-height: 100vh;
+  padding: 4rem 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  grid-row-start: 2;
+  justify-content: center;
+  align-items: center;
+  background-color: #f5f5f5;
 }
 
-.main ol {
-  font-family: var(--font-geist-mono);
-  padding-left: 0;
+.container {
+  padding: 0 2rem;
+  max-width: 800px;
+  width: 100%;
+}
+
+.title {
   margin: 0;
-  font-size: 14px;
-  line-height: 24px;
-  letter-spacing: -0.01em;
-  list-style-position: inside;
+  line-height: 1.15;
+  font-size: 2.5rem;
+  text-align: center;
+  color: #333;
 }
 
-.main li:not(:last-of-type) {
-  margin-bottom: 8px;
+.description {
+  margin: 1.5rem 0;
+  line-height: 1.5;
+  font-size: 1.25rem;
+  text-align: center;
+  color: #666;
 }
 
-.main code {
-  font-family: inherit;
-  background: var(--gray-alpha-100);
-  padding: 2px 4px;
+.analyzing {
+  margin: 2rem 0;
+  padding: 1rem;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
+
+.fileList {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.fileList h2 {
+  margin: 0 0 1rem 0;
+  color: #333;
+  font-size: 1.25rem;
+}
+
+.fileList ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.fileItem {
+  padding: 1rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.fileItem:last-child {
+  border-bottom: none;
+}
+
+.fileName {
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.vendorInfo {
+  background-color: #f8f9fa;
+  padding: 0.75rem;
   border-radius: 4px;
-  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.vendorName {
+  font-weight: 500;
+  color: #0070f3;
+}
+
+.confidence {
+  color: #666;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.identifiers {
+  color: #666;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+.error {
+  color: #dc3545;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.noVendor {
+  color: #666;
+  font-style: italic;
+  margin-top: 0.5rem;
+}
+
+.fieldMappings {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.fieldMappings h3 {
+  font-size: 1rem;
+  color: #333;
+  margin: 0 0 0.5rem 0;
+}
+
+.fieldMappings ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.fieldMappings li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.875rem;
+}
+
+.sourceField {
+  color: #666;
+  font-family: monospace;
+}
+
+.mappingArrow {
+  color: #999;
+}
+
+.targetField {
+  color: #0070f3;
+  font-weight: 500;
+}
+
+.transformInfo {
+  color: #28a745;
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.dataPreview {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.dataPreview h3 {
+  font-size: 1rem;
+  color: #333;
+  margin: 0 0 0.5rem 0;
+}
+
+.previewTable {
+  overflow-x: auto;
+  background-color: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.previewTable table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.previewTable th,
+.previewTable td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.previewTable th {
+  background-color: #f8f9fa;
+  font-weight: 500;
+  color: #333;
+}
+
+.previewTable tr:last-child td {
+  border-bottom: none;
+}
+
+.moreRows {
+  padding: 0.5rem;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  font-size: 0.75rem;
 }
 
 .ctas {
