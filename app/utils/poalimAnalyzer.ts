@@ -39,28 +39,32 @@ export function isPoalimFile(fileName: string, headers: string[]): boolean {
   return isShekelFile && hasPoalimHeaders;
 }
 
-export async function analyzePoalimFile(content: string, fileName: string): Promise<any> {
-  const result = Papa.parse<RowData>(content, {
-    header: true,
-    skipEmptyLines: true
-  });
-
-  if (result.errors.length > 0) {
-    throw new Error('Failed to parse CSV file');
-  }
-
-  return result.data.map(row => {
-    const transformedRow: any = {};
-    POALIM_FIELD_MAPPINGS.forEach(mapping => {
-      const value = row[mapping.source];
-      if (value !== undefined && !transformedRow[mapping.target]) {
-        transformedRow[mapping.target] = mapping.transform 
-          ? mapping.transform(value as string)
-          : value;
-      }
+export async function analyzePoalimFile(content: string | ArrayBuffer, fileName: string): Promise<any> {
+  if (typeof content === 'string') {
+    const result = Papa.parse<RowData>(content, {
+      header: true,
+      skipEmptyLines: true
     });
-    return transformedRow;
-  });
+
+    if (result.errors.length > 0) {
+      throw new Error('Failed to parse CSV file');
+    }
+
+    return result.data.map(row => {
+      const transformedRow: any = {};
+      POALIM_FIELD_MAPPINGS.forEach(mapping => {
+        const value = row[mapping.source];
+        if (value !== undefined && !transformedRow[mapping.target]) {
+          transformedRow[mapping.target] = mapping.transform 
+            ? mapping.transform(value as string)
+            : value;
+        }
+      });
+      return transformedRow;
+    });
+  } else {
+    throw new Error('POALIM analyzer only supports CSV files');
+  }
 }
 
 export function getPoalimVendorInfo(): VendorInfo {

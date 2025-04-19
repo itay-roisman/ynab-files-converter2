@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { isPoalimFile, getPoalimVendorInfo } from './poalimAnalyzer';
+import { isIsracardFile, getIsracardVendorInfo } from './isracardAnalyzer';
 
 export interface FieldMapping {
   source: string;
@@ -13,8 +14,8 @@ export interface VendorInfo {
   confidence: number;
   uniqueIdentifiers: string[];
   fieldMappings?: FieldMapping[];
-  analyzeFile?: (content: string, fileName: string) => Promise<any>;
-  isVendorFile?: (fileName: string, headers: string[]) => boolean;
+  analyzeFile?: (content: string | ArrayBuffer, fileName: string) => Promise<any>;
+  isVendorFile?: (fileName: string, sheet: XLSX.WorkSheet) => boolean;
 }
 
 export interface FileAnalysis {
@@ -32,7 +33,7 @@ interface VendorConfig {
   patterns: string[];
   confidence: number;
   fieldMappings?: FieldMapping[];
-  analyzeFile?: (content: string, fileName: string) => Promise<any>;
+  analyzeFile?: (content: string | ArrayBuffer, fileName: string) => Promise<any>;
 }
 
 // Common vendor identifiers
@@ -128,10 +129,17 @@ function analyzeCSVContent(content: string, fileName: string): VendorInfo | null
   return null;
 }
 
-function analyzeExcelContent(buffer: ArrayBuffer): VendorInfo | null {
+function analyzeExcelContent(buffer: ArrayBuffer, fileName: string): VendorInfo | null {
   const workbook = XLSX.read(buffer, { type: 'array' });
   const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
   const data = XLSX.utils.sheet_to_json<RowData>(firstSheet);
+  const headers = Object.keys(data[0] || {});
+
+  // Check if this is an ISRACARD file
+  const isracardVendorInfo = getIsracardVendorInfo();
+  if (isracardVendorInfo.isVendorFile?.(fileName, firstSheet)) {
+    return isracardVendorInfo;
+  }
 
   // Look for vendor information in common columns
   const commonColumns = ['description', 'merchant', 'vendor', 'payee', 'name'];
@@ -163,9 +171,13 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
       if (vendorInfo?.analyzeFile) {
         data = await vendorInfo.analyzeFile(content, file.name);
       }
-    } else if (file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
+    } else if (file.name.toLowerCase().endsWith('.xls') || file.name.toLowerCase().endsWith('.xlsx')) {
       const buffer = await file.arrayBuffer();
-      vendorInfo = analyzeExcelContent(buffer);
+      vendorInfo = analyzeExcelContent(buffer, file.name);
+      
+      if (vendorInfo?.analyzeFile) {
+        data = await vendorInfo.analyzeFile(buffer, file.name);
+      }
     }
 
     return {
