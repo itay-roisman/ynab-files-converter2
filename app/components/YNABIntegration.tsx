@@ -159,7 +159,7 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError 
           disabled={!selectedBudget || isLoading}
         >
           <option value="">Select an account</option>
-          {accounts.map(account => (
+          {accounts.filter(account => !account.closed).map(account => (
             <option key={account.id} value={account.id}>
               {account.name}
             </option>
