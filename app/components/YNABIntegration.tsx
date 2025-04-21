@@ -9,6 +9,7 @@ interface YNABIntegrationProps {
   transactions?: YNABTransaction[];
   onSuccess?: () => void;
   onError?: (error: Error) => void;
+  identifier?: string;
 }
 
 interface Budget {
@@ -17,7 +18,7 @@ interface Budget {
   first_month: string;
 }
 
-export default function YNABIntegration({ transactions = [], onSuccess, onError }: YNABIntegrationProps) {
+export default function YNABIntegration({ transactions = [], onSuccess, onError, identifier }: YNABIntegrationProps) {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedBudget, setSelectedBudget] = useState('');
@@ -74,6 +75,17 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError 
     }
   }, [selectedBudget, ynabService, onError]);
 
+  useEffect(() => {
+    if (identifier) {
+      // Try to get the previously selected account for this identifier
+      const storedMappings = JSON.parse(localStorage.getItem('identifierAccountMappings') || '{}');
+      const storedAccountId = storedMappings[identifier];
+      if (storedAccountId) {
+        setSelectedAccount(storedAccountId);
+      }
+    }
+  }, [identifier]);
+
   const handleSubmit = async () => {
     if (!ynabService || !selectedBudget || !selectedAccount) {
       onError?.(new Error('Please select a budget and account'));
@@ -87,6 +99,14 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError 
         account_id: selectedAccount
       }));
       await ynabService.createTransactions(selectedBudget, transactionsWithAccount);
+      
+      // Store the identifier-account mapping
+      if (identifier) {
+        const storedMappings = JSON.parse(localStorage.getItem('identifierAccountMappings') || '{}');
+        storedMappings[identifier] = selectedAccount;
+        localStorage.setItem('identifierAccountMappings', JSON.stringify(storedMappings));
+      }
+      
       onSuccess?.();
     } catch (error) {
       onError?.(error instanceof Error ? error : new Error('Failed to create transactions'));

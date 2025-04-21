@@ -201,6 +201,7 @@ export default function Home() {
             transactions={transactions}
             onSuccess={handleYNABSuccess}
             onError={handleYNABError}
+            identifier={fileAnalyses[0]?.identifier || undefined}
           />
         )}
       </div>
