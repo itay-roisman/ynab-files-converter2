@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { isPoalimFile, getPoalimVendorInfo } from './poalimAnalyzer';
 import { isIsracardFile, getIsracardVendorInfo } from './isracardAnalyzer';
+import { isMaxFile, getMaxVendorInfo } from './maxAnalyzer';
 
 export interface FieldMapping {
   source: string;
@@ -139,6 +140,12 @@ function analyzeExcelContent(buffer: ArrayBuffer, fileName: string): VendorInfo 
   const isracardVendorInfo = getIsracardVendorInfo();
   if (isracardVendorInfo.isVendorFile?.(fileName, firstSheet)) {
     return isracardVendorInfo;
+  }
+
+  // Check if this is a MAX file
+  const maxVendorInfo = getMaxVendorInfo();
+  if (maxVendorInfo.isVendorFile?.(fileName, firstSheet)) {
+    return maxVendorInfo;
   }
 
   // Look for vendor information in common columns
