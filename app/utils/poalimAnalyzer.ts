@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import { FieldMapping, VendorInfo, RowData } from './fileAnalyzer';
+import * as XLSX from 'xlsx';
 
 export const POALIM_FIELD_MAPPINGS: FieldMapping[] = [
   { source: 'תאריך', target: 'date' },
@@ -25,7 +26,7 @@ export const POALIM_FIELD_MAPPINGS: FieldMapping[] = [
   }
 ];
 
-export function isPoalimFile(fileName: string, headers: string[]): boolean {
+export function isPoalimFile(fileName: string, headers: string[]): string | null {
   console.log('Checking POALIM file:', {
     fileName,
     headers,
@@ -36,7 +37,12 @@ export function isPoalimFile(fileName: string, headers: string[]): boolean {
   const isShekelFile = fileName.toLowerCase().startsWith('shekel');
   const hasPoalimHeaders = headers.join() === 'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,';
   
-  return isShekelFile && hasPoalimHeaders;
+  if (isShekelFile && hasPoalimHeaders) {
+    // Extract account number from filename (9 digits after 'shekel')
+    const accountNumber = fileName.substring(6, 15);
+    return accountNumber;
+  }
+  return null;
 }
 
 export async function analyzePoalimFile(content: string | ArrayBuffer, fileName: string): Promise<any> {
@@ -74,7 +80,8 @@ export function getPoalimVendorInfo(): VendorInfo {
     uniqueIdentifiers: ['POALIM Bank Statement'],
     fieldMappings: POALIM_FIELD_MAPPINGS,
     analyzeFile: analyzePoalimFile,
-    isVendorFile: (fileName: string, headers: string[]) => {
+    isVendorFile: (fileName: string, sheet: XLSX.WorkSheet) => {
+      const headers = Object.values(sheet);
       console.log('Checking POALIM file:', {
         fileName,
         headers,
@@ -83,10 +90,13 @@ export function getPoalimVendorInfo(): VendorInfo {
       });
       
       const isShekelFile = fileName.toLowerCase().startsWith('shekel');
-      const hasPoalimHeaders = headers.join() === 'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,'
-      ;
+      const hasPoalimHeaders = headers.join() === 'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,';
       
-      return isShekelFile && hasPoalimHeaders;
+      if (isShekelFile && hasPoalimHeaders) {
+        // Extract account number from filename (9 digits after 'shekel')
+        return fileName.substring(6, 15);
+      }
+      return null;
     }
   };
 } 

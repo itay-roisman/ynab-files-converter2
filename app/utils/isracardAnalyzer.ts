@@ -23,15 +23,17 @@ export const ISRACARD_FIELD_MAPPINGS: FieldMapping[] = [
   { source: 'פירוט נוסף', target: 'memo' }
 ];
 
-export function isIsracardFile(fileName: string, sheet: XLSX.WorkSheet): boolean {
-  if (!fileName.startsWith('Export_')) return false;
+export function isIsracardFile(fileName: string, sheet: XLSX.WorkSheet): string | null {
+  if (!fileName.startsWith('Export_')) return null;
   
   const sheetJson = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
   const firstRow = sheetJson[5];
-  return firstRow.some(cell => 
+  const isIsracard = firstRow.some(cell => 
     cell && typeof cell === 'string' && 
     (cell.includes('תאריך רכישה') || cell.includes('שם בית עסק'))
   );
+  
+  return isIsracard ? sheetJson[3][0] : null;
 }
 
 export async function analyzeIsracardFile(content: string | ArrayBuffer, fileName: string): Promise<any> {

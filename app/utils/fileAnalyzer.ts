@@ -1,8 +1,8 @@
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { isPoalimFile, getPoalimVendorInfo } from './poalimAnalyzer';
-import { isIsracardFile, getIsracardVendorInfo } from './isracardAnalyzer';
-import { isMaxFile, getMaxVendorInfo } from './maxAnalyzer';
+import { getPoalimVendorInfo } from './poalimAnalyzer';
+import { getIsracardVendorInfo } from './isracardAnalyzer';
+import { getMaxVendorInfo } from './maxAnalyzer';
 
 export interface FieldMapping {
   source: string;
@@ -16,7 +16,7 @@ export interface VendorInfo {
   uniqueIdentifiers: string[];
   fieldMappings?: FieldMapping[];
   analyzeFile?: (content: string | ArrayBuffer, fileName: string) => Promise<any>;
-  isVendorFile?: (fileName: string, sheet: XLSX.WorkSheet) => boolean;
+  isVendorFile?: (fileName: string, sheet: XLSX.WorkSheet) => string | null;
 }
 
 export interface FileAnalysis {
@@ -24,6 +24,7 @@ export interface FileAnalysis {
   vendorInfo: VendorInfo | null;
   error?: string;
   data?: any;
+  identifier: string | null;
 }
 
 export interface RowData {
@@ -85,7 +86,7 @@ function findVendorInText(text: string): VendorInfo | null {
   return null;
 }
 
-function analyzeCSVContent(content: string, fileName: string): VendorInfo | null {
+function analyzeCSVContent(content: string, fileName: string): { vendorInfo: VendorInfo | null; identifier: string | null } {
   console.log('Analyzing CSV content:', {
     fileName,
     contentPreview: content.substring(0, 200)
@@ -103,13 +104,14 @@ function analyzeCSVContent(content: string, fileName: string): VendorInfo | null
   });
 
   if (result.errors.length > 0) {
-    return null;
+    return { vendorInfo: null, identifier: null };
   }
 
   // Check if this is a POALIM file
   const poalimVendorInfo = getPoalimVendorInfo();
-  if (poalimVendorInfo.isVendorFile?.(fileName, result.meta.fields || [])) {
-    return poalimVendorInfo;
+  const poalimIdentifier = poalimVendorInfo.isVendorFile?.(fileName, result.meta.fields || []);
+  if (poalimIdentifier) {
+    return { vendorInfo: poalimVendorInfo, identifier: poalimIdentifier };
   }
 
   // Look for vendor information in common columns
@@ -121,16 +123,16 @@ function analyzeCSVContent(content: string, fileName: string): VendorInfo | null
       if (value && typeof value === 'string') {
         const vendorInfo = findVendorInText(value);
         if (vendorInfo) {
-          return vendorInfo;
+          return { vendorInfo, identifier: value };
         }
       }
     }
   }
 
-  return null;
+  return { vendorInfo: null, identifier: null };
 }
 
-function analyzeExcelContent(buffer: ArrayBuffer, fileName: string): VendorInfo | null {
+function analyzeExcelContent(buffer: ArrayBuffer, fileName: string): { vendorInfo: VendorInfo | null; identifier: string | null } {
   const workbook = XLSX.read(buffer, { type: 'array' });
   const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
   const data = XLSX.utils.sheet_to_json<RowData>(firstSheet);
@@ -138,14 +140,16 @@ function analyzeExcelContent(buffer: ArrayBuffer, fileName: string): VendorInfo 
 
   // Check if this is an ISRACARD file
   const isracardVendorInfo = getIsracardVendorInfo();
-  if (isracardVendorInfo.isVendorFile?.(fileName, firstSheet)) {
-    return isracardVendorInfo;
+  const isracardIdentifier = isracardVendorInfo.isVendorFile?.(fileName, firstSheet);
+  if (isracardIdentifier) {
+    return { vendorInfo: isracardVendorInfo, identifier: isracardIdentifier };
   }
 
   // Check if this is a MAX file
   const maxVendorInfo = getMaxVendorInfo();
-  if (maxVendorInfo.isVendorFile?.(fileName, firstSheet)) {
-    return maxVendorInfo;
+  const maxIdentifier = maxVendorInfo.isVendorFile?.(fileName, firstSheet);
+  if (maxIdentifier) {
+    return { vendorInfo: maxVendorInfo, identifier: maxIdentifier };
   }
 
   // Look for vendor information in common columns
@@ -157,30 +161,35 @@ function analyzeExcelContent(buffer: ArrayBuffer, fileName: string): VendorInfo 
       if (value && typeof value === 'string') {
         const vendorInfo = findVendorInText(value);
         if (vendorInfo) {
-          return vendorInfo;
+          return { vendorInfo, identifier: value };
         }
       }
     }
   }
 
-  return null;
+  return { vendorInfo: null, identifier: null };
 }
 
 export async function analyzeFile(file: File): Promise<FileAnalysis> {
   try {
     let vendorInfo: VendorInfo | null = null;
     let data: any = null;
+    let identifier: string | null = null;
 
     if (file.name.endsWith('.csv')) {
       const content = await file.text();
-      vendorInfo = analyzeCSVContent(content, file.name);
+      const analysis = analyzeCSVContent(content, file.name);
+      vendorInfo = analysis.vendorInfo;
+      identifier = analysis.identifier;
       
       if (vendorInfo?.analyzeFile) {
         data = await vendorInfo.analyzeFile(content, file.name);
       }
     } else if (file.name.toLowerCase().endsWith('.xls') || file.name.toLowerCase().endsWith('.xlsx')) {
       const buffer = await file.arrayBuffer();
-      vendorInfo = analyzeExcelContent(buffer, file.name);
+      const analysis = analyzeExcelContent(buffer, file.name);
+      vendorInfo = analysis.vendorInfo;
+      identifier = analysis.identifier;
       
       if (vendorInfo?.analyzeFile) {
         data = await vendorInfo.analyzeFile(buffer, file.name);
@@ -190,13 +199,15 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
     return {
       fileName: file.name,
       vendorInfo,
-      data
+      data,
+      identifier
     };
   } catch (error) {
     return {
       fileName: file.name,
       vendorInfo: null,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      identifier: null
     };
   }
 }

@@ -179,6 +179,11 @@ export default function Home() {
                       <div className={styles.identifiers}>
                         Identified by: {analysis.vendorInfo.uniqueIdentifiers.join(', ')}
                       </div>
+                      {analysis.identifier && (
+                        <div className={styles.identifier}>
+                          Identifier: {analysis.identifier}
+                        </div>
+                      )}
                       {analysis.vendorInfo.fieldMappings && renderFieldMappings(analysis.vendorInfo.fieldMappings)}
                       {analysis.data && renderDataPreview(analysis.data as TransformedRow[])}
                     </div>

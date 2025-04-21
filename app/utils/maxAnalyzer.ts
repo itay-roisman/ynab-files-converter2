@@ -42,15 +42,17 @@ export const MAX_FIELD_MAPPINGS: FieldMapping[] = [
   }
 ];
 
-export function isMaxFile(fileName: string, sheet: XLSX.WorkSheet): boolean {
-  if (!fileName.toLowerCase().includes('transaction-details_export_')) return false;
+export function isMaxFile(fileName: string, sheet: XLSX.WorkSheet): string | null {
+  if (!fileName.toLowerCase().includes('transaction-details_export_')) return null;
   
   const sheetJson = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
   const firstRow = sheetJson[3]; // Max files have headers in row 4
-  return firstRow.some(cell => 
+  const isMax = firstRow.some(cell => 
     cell && typeof cell === 'string' && 
     (cell.includes('תאריך עסקה') || cell.includes('שם בית העסק'))
   );
+  
+  return isMax ? sheetJson[1][0] : null; // Return value from cell A4 (row 2, column 1)
 }
 
 export async function analyzeMaxFile(content: string | ArrayBuffer, fileName: string): Promise<any> {
