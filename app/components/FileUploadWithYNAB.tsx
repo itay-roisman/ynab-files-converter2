@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { YNABService } from '../utils/ynabService';
 import { analyzeFiles, FileAnalysis } from '../utils/fileAnalyzer';
+import { YNAB_OAUTH_CONFIG } from '../config/oauth';
 import styles from './FileUploadWithYNAB.module.css';
 
 interface FileWithYNAB {
@@ -23,6 +24,16 @@ interface Budget {
   id: string;
   name: string;
   first_month: string;
+  currency_format: {
+    currency_symbol: string;
+    decimal_digits: number;
+    decimal_separator: string;
+    display_symbol: boolean;
+    example_format: string;
+    group_separator: string;
+    iso_code: string;
+    symbol_first: boolean;
+  };
 }
 
 interface Account {
@@ -43,6 +54,47 @@ export default function FileUploadWithYNAB() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleConnect = () => {
+    const authUrl = new URL(YNAB_OAUTH_CONFIG.authUrl);
+    authUrl.searchParams.append('client_id', YNAB_OAUTH_CONFIG.clientId);
+    authUrl.searchParams.append('redirect_uri', YNAB_OAUTH_CONFIG.redirectUri);
+    authUrl.searchParams.append('response_type', 'code');
+    authUrl.searchParams.append('scope', YNAB_OAUTH_CONFIG.scope);
+    
+    window.location.href = authUrl.toString();
+  };
+
+  const handleDisconnect = () => {
+    localStorage.removeItem('ynab_access_token');
+    localStorage.removeItem('ynab_refresh_token');
+    localStorage.removeItem('ynab_token_expiry');
+    setYnabService(null);
+    setBudgets([]);
+    setAccounts({});
+  };
+
+  const accessToken = localStorage.getItem('ynab_access_token');
+
+  if (!accessToken) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.unauthorizedContainer}>
+          <h3>Connect to YNAB</h3>
+          <p className={styles.unauthorizedMessage}>
+            You need to authorize this application to access your YNAB account.
+            This will allow you to send transactions directly to your YNAB budget.
+          </p>
+          <button
+            className={styles.connectButton}
+            onClick={handleConnect}
+          >
+            Authorize with YNAB
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const accessToken = localStorage.getItem('ynab_access_token');
@@ -230,11 +282,27 @@ export default function FileUploadWithYNAB() {
     setExpandedFile(expandedFile === index ? null : index);
   };
 
-  const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+  const formatAmount = (amount: number, budgetId: string) => {
+    const budget = budgets.find(b => b.id === budgetId);
+    if (!budget) return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
-    }).format(amount);
+      currency: 'USD',
+      currencyDisplay: 'narrowSymbol'
+    }).format(amount / 1000).replace('$', '') + ' $';
+
+    const { currency_format } = budget;
+    const formatter = new Intl.NumberFormat(currency_format.iso_code, {
+      style: 'currency',
+      currency: currency_format.iso_code,
+      minimumFractionDigits: currency_format.decimal_digits,
+      maximumFractionDigits: currency_format.decimal_digits,
+      currencyDisplay: 'narrowSymbol'
+    });
+
+    // Remove the currency symbol from the beginning and add it to the end
+    const formattedAmount = formatter.format(amount / 1000);
+    const currencySymbol = currency_format.currency_symbol;
+    return formattedAmount.replace(currencySymbol, '').trim() + ' ' + currencySymbol;
   };
 
   const formatDate = (date: string) => {
@@ -309,6 +377,15 @@ export default function FileUploadWithYNAB() {
 
   return (
     <div className={styles.container}>
+      <div className={styles.header}>
+        <h3>YNAB Integration</h3>
+        <button
+          className={styles.disconnectButton}
+          onClick={handleDisconnect}
+        >
+          Disconnect from YNAB
+        </button>
+      </div>
       <div 
         className={`${styles.uploadArea} ${isDragging ? styles.dragging : ''}`}
         onDragOver={handleDragOver}
@@ -429,7 +506,9 @@ export default function FileUploadWithYNAB() {
                       <div className={styles.transactionAmount}>Amount</div>
                       <div className={styles.transactionMemo}>Memo</div>
                     </div>
-                    {fileWithYNAB.transactions.map((transaction, tIndex) => (
+                    {[...fileWithYNAB.transactions]
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map((transaction, tIndex) => (
                       <div key={tIndex} className={styles.transactionRow}>
                         <div className={styles.transactionDate}>
                           {formatDate(transaction.date)}
@@ -438,7 +517,7 @@ export default function FileUploadWithYNAB() {
                           {transaction.payee_name}
                         </div>
                         <div className={`${styles.transactionAmount} ${transaction.amount < 0 ? styles.negative : ''}`}>
-                          {formatAmount(transaction.amount)}
+                          {formatAmount(transaction.amount, fileWithYNAB.budgetId)}
                         </div>
                         <div className={styles.transactionMemo}>
                           {transaction.memo}

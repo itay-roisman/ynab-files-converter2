@@ -3,7 +3,7 @@ export const YNAB_OAUTH_CONFIG = {
   clientSecret: process.env.NEXT_PUBLIC_YNAB_CLIENT_SECRET || '',
   authUrl: 'https://app.ynab.com/oauth/authorize',
   tokenUrl: 'https://app.ynab.com/oauth/token',
-  redirectUri: 'http://localhost:3000/oauth/callback',
+  redirectUri: process.env.NEXT_PUBLIC_YNAB_REDIRECT_URI || 'http://localhost:3000/oauth/callback',
   scope: '',
   
   // Helper method to validate configuration
@@ -12,6 +12,7 @@ export const YNAB_OAUTH_CONFIG = {
       hasClientId: !!this.clientId,
       hasClientSecret: !!this.clientSecret,
       hasRedirectUri: !!this.redirectUri,
+      redirectUri: this.redirectUri,
       envClientSecret: process.env.NEXT_PUBLIC_YNAB_CLIENT_SECRET
     });
 

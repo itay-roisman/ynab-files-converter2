@@ -179,4 +179,15 @@ export class YNABService {
       throw new Error('Failed to create transactions');
     }
   }
-} 
+}
+
+export const redirectToYNABAuthorize = () => {
+  const params = new URLSearchParams({
+    client_id: YNAB_OAUTH_CONFIG.clientId,
+    redirect_uri: YNAB_OAUTH_CONFIG.redirectUri,
+    response_type: 'code',
+    scope: YNAB_OAUTH_CONFIG.scope,
+  });
+
+  window.location.href = `${YNAB_OAUTH_CONFIG.authUrl}?${params.toString()}`;
+}; 

@@ -133,18 +133,25 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
   };
 
   const accessToken = localStorage.getItem('ynab_access_token');
+  console.log('Access token status:', { hasAccessToken: !!accessToken });
 
   if (!accessToken) {
+    console.log('Rendering unauthorized state');
     return (
       <div className={styles.container}>
-        <h3>Connect to YNAB</h3>
-        <p>You need to connect your YNAB account to send transactions.</p>
-        <button
-          className={styles.connectButton}
-          onClick={handleConnect}
-        >
-          Connect with YNAB
-        </button>
+        <div className={styles.unauthorizedContainer}>
+          <h3>Connect to YNAB</h3>
+          <p className={styles.unauthorizedMessage}>
+            You need to authorize this application to access your YNAB account.
+            This will allow you to send transactions directly to your YNAB budget.
+          </p>
+          <button
+            className={styles.connectButton}
+            onClick={handleConnect}
+          >
+            Authorize with YNAB
+          </button>
+        </div>
       </div>
     );
   }
