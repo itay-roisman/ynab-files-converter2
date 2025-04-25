@@ -158,20 +158,23 @@ export async function analyzeIsracardFile(content: string | ArrayBuffer, fileNam
     
     for (let i = foreignStartIndex + 1; i < sheetJson.length; i++) {
       const row = sheetJson[i];
-      // Skip TOTAL FOR DATE rows and other summary rows
-      if (!row || row.length === 0 || !row[0]) {
+      // Skip empty rows
+      if (!row || row.length === 0) {
+        console.log('Empty row at:', i);
+        continue;
+      }
+      
+      // Check if we've reached the end of the transaction section
+      if ((row[0] && typeof row[0] === 'string' && 
+          (row[0].includes('סך') || row[0].includes('דביט') || row[0].includes('אין נתונים')))) {
         console.log('End of foreign transactions at row:', i);
         break;
       }
       
-      if ((row[2] && typeof row[2] === 'string' && row[2].includes("TOTAL")) || 
-          (row[0] && typeof row[0] === 'string' && row[0].includes('סך'))) {
-        if (row[2] === "TOTAL FOR DATE") {
-          console.log('Skipping total row:', i);
-          continue;
-        }
-        console.log('End of foreign transactions at row:', i);
-        break;
+      // Skip TOTAL FOR DATE rows but continue processing
+      if (row[1] && typeof row[1] === 'string' && row[1] === "TOTAL FOR DATE") {
+        console.log('Skipping total row:', i);
+        continue;
       }
       
       const transaction: any = {};
