@@ -1,92 +1,122 @@
-'use client';
-
-import { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { analyzeFiles, FileAnalysis } from '../utils/fileAnalyzer';
 import styles from './FileUpload.module.css';
 
 interface FileUploadProps {
-  onFilesSelected: (files: File[]) => void;
+  onAnalysisComplete?: (analysis: FileAnalysis[]) => void;
 }
 
-export default function FileUpload({ onFilesSelected }: FileUploadProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+export default function FileUpload({ onAnalysisComplete }: FileUploadProps) {
+  const [files, setFiles] = useState<File[]>([]);
+  const [analysis, setAnalysis] = useState<FileAnalysis[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    setFiles(acceptedFiles);
+    setError(null);
   }, []);
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const files = Array.from(e.dataTransfer.files).filter(file => 
-      file.type === 'text/csv' || 
-      file.name.endsWith('.xls') || 
-      file.name.endsWith('.xlsx')
-    );
-    
-    if (files.length > 0) {
-      onFilesSelected(files);
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
+    onDrop,
+    accept: {
+      'text/csv': ['.csv'],
+      'application/vnd.ms-excel': ['.xls'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel.sheet.macroEnabled.12': ['.xlsm']
     }
-  }, [onFilesSelected]);
+  });
 
-  const handleSelectClick = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files).filter(file => 
-        file.type === 'text/csv' || 
-        file.name.endsWith('.xls') || 
-        file.name.endsWith('.xlsx')
-      );
+  useEffect(() => {
+    async function processFiles() {
+      if (files.length === 0) return;
       
-      if (files.length > 0) {
-        onFilesSelected(files);
+      try {
+        setLoading(true);
+        const results = await analyzeFiles(files);
+        setAnalysis(results);
+        
+        if (onAnalysisComplete) {
+          onAnalysisComplete(results);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        console.error('Error analyzing files:', err);
+      } finally {
+        setLoading(false);
       }
     }
-  }, [onFilesSelected]);
+
+    processFiles();
+  }, [files, onAnalysisComplete]);
 
   return (
-    <div 
-      className={`${styles.uploadContainer} ${isDragging ? styles.dragging : ''}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      <div className={styles.uploadContent}>
-        <input
-          ref={fileInputRef}
-          type="file"
-          id="fileInput"
-          className={styles.fileInput}
-          accept=".csv,.xls,.xlsx"
-          multiple
-          onChange={handleFileSelect}
-        />
-        <label htmlFor="fileInput" className={styles.uploadLabel}>
-          <div className={styles.uploadIcon}>📁</div>
-          <div className={styles.uploadText}>
-            <p>Drag and drop your files here</p>
-            <p>or</p>
-            <button 
-              type="button"
-              className={styles.selectButton}
-              onClick={handleSelectClick}
-            >
-              Select Files
-            </button>
+    <div className={styles.container}>
+      <div 
+        {...getRootProps()} 
+        className={`${styles.dropzone} ${isDragActive ? styles.active : ''}`}
+      >
+        <input {...getInputProps()} />
+        {isDragActive ? (
+          <p>Drop the files here...</p>
+        ) : (
+          <div className={styles.uploadPrompt}>
+            <img src="/file.svg" alt="Upload" className={styles.uploadIcon} />
+            <p>Drag & drop files here, or click to select files</p>
+            <p className={styles.fileTypeHint}>Supported formats: CSV, XLS, XLSX</p>
           </div>
-          <p className={styles.supportedFormats}>Supported formats: CSV, XLS, XLSX</p>
-        </label>
+        )}
       </div>
+
+      {loading && <p className={styles.status}>Analyzing files...</p>}
+      
+      {error && <p className={styles.error}>{error}</p>}
+      
+      {files.length > 0 && !loading && (
+        <div className={styles.fileList}>
+          <h3>Selected Files:</h3>
+          <ul>
+            {files.map((file, index) => (
+              <li key={`${file.name}-${index}`}>
+                {file.name} ({Math.round(file.size / 1024)} KB)
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {analysis.length > 0 && !loading && (
+        <div className={styles.analysisResults}>
+          <h3>Analysis Results:</h3>
+          {analysis.map((result, index) => (
+            <div key={`${result.fileName}-${index}`} className={styles.analysisItem}>
+              <h4>{result.fileName}</h4>
+              
+              {result.error ? (
+                <p className={styles.error}>{result.error}</p>
+              ) : (
+                <div>
+                  <p>
+                    <strong>Vendor:</strong> {result.vendorInfo?.name || 'Unknown'}
+                    {result.identifier && (
+                      <> ({result.identifier})</>
+                    )}
+                  </p>
+                  
+                  {result.data?.transactions && (
+                    <p><strong>Transactions:</strong> {result.data.transactions.length}</p>
+                  )}
+                  
+                  {result.data?.finalBalance !== undefined && (
+                    <p><strong>Final Balance:</strong> {result.data.finalBalance.toLocaleString()} ₪</p>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
-} 
+}

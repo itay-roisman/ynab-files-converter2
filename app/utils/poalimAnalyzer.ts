@@ -56,7 +56,7 @@ export async function analyzePoalimFile(content: string | ArrayBuffer, fileName:
       throw new Error('Failed to parse CSV file');
     }
 
-    return result.data.map(row => {
+    const transactions = result.data.map(row => {
       const transformedRow: any = {};
       POALIM_FIELD_MAPPINGS.forEach(mapping => {
         const value = row[mapping.source];
@@ -68,6 +68,15 @@ export async function analyzePoalimFile(content: string | ArrayBuffer, fileName:
       });
       return transformedRow;
     });
+
+    // Get the final balance from the last row
+    const lastRow = result.data[result.data.length - 1];
+    const finalBalance = lastRow['יתרה לאחר פעולה'] ? parseFloat(String(lastRow['יתרה לאחר פעולה']).replace(',', '')) : null;
+
+    return {
+      transactions,
+      finalBalance
+    };
   } else {
     throw new Error('POALIM analyzer only supports CSV files');
   }

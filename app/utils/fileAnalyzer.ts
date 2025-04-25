@@ -3,6 +3,7 @@ import Papa from 'papaparse';
 import { getPoalimVendorInfo } from './poalimAnalyzer';
 import { getIsracardVendorInfo } from './isracardAnalyzer';
 import { getMaxVendorInfo } from './maxAnalyzer';
+import { getCalVendorInfo } from './calAnalyzer';
 
 export interface FieldMapping {
   source: string;
@@ -14,9 +15,9 @@ export interface VendorInfo {
   name: string;
   confidence: number;
   uniqueIdentifiers: string[];
-  fieldMappings?: FieldMapping[];
-  analyzeFile?: (content: string | ArrayBuffer, fileName: string) => Promise<any>;
-  isVendorFile?: (fileName: string, sheet: XLSX.WorkSheet) => string | null;
+  fieldMappings: FieldMapping[];
+  analyzeFile: (content: string | ArrayBuffer, fileName: string) => Promise<AnalysisResult>;
+  isVendorFile: (fileName: string, sheet: any) => string | null;
 }
 
 export interface FileAnalysis {
@@ -24,11 +25,20 @@ export interface FileAnalysis {
   vendorInfo: VendorInfo | null;
   error?: string;
   data?: any;
+  finalBalance?: number;  // Add this property to expose the final balance
   identifier: string | null;
 }
 
 export interface RowData {
-  [key: string]: string | number | null;
+  date: string;
+  amount: number;
+  payee_name: string;
+  memo?: string;
+}
+
+export interface AnalysisResult {
+  transactions: RowData[];
+  finalBalance?: number;
 }
 
 interface VendorConfig {
@@ -138,6 +148,13 @@ function analyzeExcelContent(buffer: ArrayBuffer, fileName: string): { vendorInf
   const data = XLSX.utils.sheet_to_json<RowData>(firstSheet);
   const headers = Object.keys(data[0] || {});
 
+  // Check if this is a CAL file
+  const calVendorInfo = getCalVendorInfo();
+  const calIdentifier = calVendorInfo.isVendorFile?.(fileName, firstSheet);
+  if (calIdentifier) {
+    return { vendorInfo: calVendorInfo, identifier: calIdentifier };
+  }
+
   // Check if this is an ISRACARD file
   const isracardVendorInfo = getIsracardVendorInfo();
   const isracardIdentifier = isracardVendorInfo.isVendorFile?.(fileName, firstSheet);
@@ -175,6 +192,7 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
     let vendorInfo: VendorInfo | null = null;
     let data: any = null;
     let identifier: string | null = null;
+    let finalBalance: number | undefined = undefined;
 
     if (file.name.endsWith('.csv')) {
       const content = await file.text();
@@ -184,8 +202,10 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
       
       if (vendorInfo?.analyzeFile) {
         data = await vendorInfo.analyzeFile(content, file.name);
+        // Extract final balance if it exists
+        finalBalance = data?.finalBalance;
       }
-    } else if (file.name.toLowerCase().endsWith('.xls') || file.name.toLowerCase().endsWith('.xlsx')) {
+    } else if (file.name.toLowerCase().endsWith('.xls') || file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xlsm')) {
       const buffer = await file.arrayBuffer();
       const analysis = analyzeExcelContent(buffer, file.name);
       vendorInfo = analysis.vendorInfo;
@@ -193,6 +213,8 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
       
       if (vendorInfo?.analyzeFile) {
         data = await vendorInfo.analyzeFile(buffer, file.name);
+        // Extract final balance if it exists
+        finalBalance = data?.finalBalance;
       }
     }
 
@@ -200,6 +222,7 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
       fileName: file.name,
       vendorInfo,
       data,
+      finalBalance,
       identifier
     };
   } catch (error) {
@@ -214,4 +237,4 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
 
 export async function analyzeFiles(files: File[]): Promise<FileAnalysis[]> {
   return Promise.all(files.map(file => analyzeFile(file)));
-} 
+}

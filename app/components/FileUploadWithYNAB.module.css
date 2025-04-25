@@ -97,6 +97,15 @@
   font-size: 16px;
 }
 
+.success {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  background-color: #d1fae5;
+  color: #047857;
+  border-radius: 0.25rem;
+  font-weight: 500;
+}
+
 @keyframes pulse {
   0% {
     opacity: 0.6;
@@ -126,7 +135,7 @@
 
 .tableHeader {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 0.5fr;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 0.5fr;
   gap: 16px;
   padding: 12px 16px;
   background-color: #f8f9fa;
@@ -136,7 +145,7 @@
 
 .fileRow {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 0.5fr;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 0.5fr;
   gap: 16px;
   padding: 12px 16px;
   border-bottom: 1px solid #dee2e6;
@@ -367,4 +376,196 @@
 
 .disconnectButton:hover {
   background-color: #c53030;
-} 
+}
+
+.balance {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.balanceAmount {
+  font-size: 14px;
+  color: #28a745;
+  font-weight: 500;
+  padding: 4px 8px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+}
+
+.accountBalancesReport {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background-color: #f9fafb;
+}
+
+.accountBalancesReport h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+  color: #111827;
+}
+
+.balancesList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.budgetBalances {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.budgetBalances h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #374151;
+}
+
+.accountsTable {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.accountsHeader {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  padding: 0.75rem 1rem;
+  background-color: #f3f4f6;
+  font-weight: 600;
+  color: #4b5563;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.accountRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.accountRow:last-child {
+  border-bottom: none;
+}
+
+.accountName {
+  font-weight: 500;
+}
+
+.accountBalance,
+.accountCleared,
+.accountUncleared {
+  text-align: right;
+  font-family: monospace;
+}
+
+.negative {
+  color: #ef4444;
+}
+
+.removeButton {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s ease;
+}
+
+/* Balance report styling */
+.accountBalancesReport {
+  margin-top: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.accountBalancesReport h3 {
+  margin-top: 0;
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.balancesList {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.budgetBalances {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: white;
+}
+
+.budgetBalances h4 {
+  margin: 0;
+  padding: 10px 15px;
+  background-color: #f0f0f0;
+  font-weight: 500;
+  color: #333;
+}
+
+.accountsTable {
+  width: 100%;
+}
+
+.accountsHeader {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr;
+  background-color: #f0f0f0;
+  padding: 10px 15px;
+  font-weight: 500;
+  border-bottom: 1px solid #ddd;
+  color: #555;
+}
+
+.accountRow {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr;
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.accountRow:last-child {
+  border-bottom: none;
+}
+
+.accountName {
+  font-weight: 500;
+}
+
+.fileName {
+  margin-top: 3px;
+  color: #666;
+}
+
+.accountBalance, .accountCleared, .fileBalance, .reconcileDiff {
+  text-align: right;
+  font-family: monospace;
+  font-size: 0.95rem;
+}
+
+.negative {
+  color: #d32f2f;
+}
+
+.positive {
+  color: #388e3c;
+}
+
+.reconcileNote {
+  margin-top: 3px;
+  color: #666;
+  font-style: italic;
+}

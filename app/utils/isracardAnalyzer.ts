@@ -39,7 +39,9 @@ export function isIsracardFile(fileName: string, sheet: XLSX.WorkSheet): string 
 export async function analyzeIsracardFile(content: string | ArrayBuffer, fileName: string): Promise<any> {
   console.log('Starting Isracard file analysis for:', fileName);
   
-  if (typeof content === 'string') throw new Error('Isracard analyzer only supports Excel files');
+  if (typeof content === 'string') {
+    throw new Error('Isracard analyzer only supports Excel files');
+  }
 
   const workbook = XLSX.read(content, { type: 'array' });
   console.log('Workbook sheets:', workbook.SheetNames);
@@ -47,6 +49,63 @@ export async function analyzeIsracardFile(content: string | ArrayBuffer, fileNam
   const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
   const sheetJson = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1 });
   console.log('Sheet rows count:', sheetJson.length);
+  
+  // Extract final balance
+  let finalBalance = null;
+  
+  // Try to find the total charge row
+  for (let i = 0; i < sheetJson.length; i++) {
+    const row = sheetJson[i];
+    
+    if (Array.isArray(row)) {
+      const hasTotalCharge = row.some(cell => 
+        cell && typeof cell === 'string' && cell.includes('סך חיוב בש"ח')
+      );
+      
+      if (hasTotalCharge) {
+        console.log('Found final balance row:', JSON.stringify(row));
+        
+        // For Isracard XLS files, the balance is typically found in position 4
+        const balanceIndex = 4; // Usually the 5th column (index 4)
+        if (row[balanceIndex] !== undefined) {
+          if (typeof row[balanceIndex] === 'number') {
+            finalBalance = row[balanceIndex];
+            console.log('Found final balance from numeric cell:', finalBalance);
+          } else if (typeof row[balanceIndex] === 'string') {
+            // Try to extract number from string with currency symbol
+            const matches = String(row[balanceIndex]).match(/[\d,\.]+/);
+            if (matches) {
+              finalBalance = Number(matches[0].replace(/,/g, ''));
+              console.log('Found final balance by extracting from text:', finalBalance);
+            }
+          }
+        }
+        
+        // If we didn't find the balance in the expected position, try scanning all cells
+        if (finalBalance === null) {
+          for (let j = 0; j < row.length; j++) {
+            if (row[j] && typeof row[j] !== 'undefined') {
+              if (typeof row[j] === 'number') {
+                finalBalance = row[j];
+                console.log('Found final balance in alternate position:', finalBalance, 'at index:', j);
+                break;
+              } else if (typeof row[j] === 'string') {
+                // Try to extract number from string
+                const matches = String(row[j]).match(/[\d,\.]+/);
+                if (matches) {
+                  finalBalance = Number(matches[0].replace(/,/g, ''));
+                  console.log('Found final balance from text in alternate position:', finalBalance, 'at index:', j);
+                  break;
+                }
+              }
+            }
+          }
+        }
+        
+        break;
+      }
+    }
+  }
   
   const domesticStartIndex = sheetJson.findIndex(row => 
     Array.isArray(row) && row[0] === 'תאריך רכישה' && row[1] === 'שם בית עסק'
@@ -71,10 +130,23 @@ export async function analyzeIsracardFile(content: string | ArrayBuffer, fileNam
         break;
       }
       
+      if (typeof row[0] === 'string' && 
+         (row[0].includes('סך חיוב בש"ח') || row[0].includes('עסקאות בחו"ל'))) {
+        console.log('End of domestic transactions at row:', i);
+        break;
+      }
+      
       const transaction: any = {};
       headers.forEach((header, index) => {
-        if (header && row[index]) transaction[header] = row[index];
+        if (header && row[index] !== undefined) transaction[header] = row[index];
       });
+      
+      // Skip rows that might be summary rows
+      if (Object.keys(transaction).length < 3) {
+        console.log('Skipping summary row:', transaction);
+        continue;
+      }
+      
       console.log('Raw domestic transaction:', transaction);
       transactions.push(transaction);
     }
@@ -86,20 +158,33 @@ export async function analyzeIsracardFile(content: string | ArrayBuffer, fileNam
     
     for (let i = foreignStartIndex + 1; i < sheetJson.length; i++) {
       const row = sheetJson[i];
-      if(row[2] === "TOTAL FOR DATE") {
-        console.log('Skipping row:', i);
-
-        continue;
-      }
+      // Skip TOTAL FOR DATE rows and other summary rows
       if (!row || row.length === 0 || !row[0]) {
+        console.log('End of foreign transactions at row:', i);
+        break;
+      }
+      
+      if ((row[2] && typeof row[2] === 'string' && row[2].includes("TOTAL")) || 
+          (row[0] && typeof row[0] === 'string' && row[0].includes('סך'))) {
+        if (row[2] === "TOTAL FOR DATE") {
+          console.log('Skipping total row:', i);
+          continue;
+        }
         console.log('End of foreign transactions at row:', i);
         break;
       }
       
       const transaction: any = {};
       headers.forEach((header, index) => {
-        if (header && row[index]) transaction[header] = row[index];
+        if (header && row[index] !== undefined) transaction[header] = row[index];
       });
+      
+      // Skip rows that might be summary rows
+      if (Object.keys(transaction).length < 3) {
+        console.log('Skipping summary row:', transaction);
+        continue;
+      }
+      
       console.log('Raw foreign transaction:', transaction);
       transactions.push(transaction);
     }
@@ -131,7 +216,12 @@ export async function analyzeIsracardFile(content: string | ArrayBuffer, fileNam
   }).filter(row => row !== null);
   
   console.log('Total transformed transactions:', transformedTransactions.length);
-  return transformedTransactions;
+  console.log('Final balance being returned:', finalBalance);
+  
+  return { 
+    transactions: transformedTransactions,
+    finalBalance: finalBalance
+  };
 }
 
 export function getIsracardVendorInfo(): VendorInfo {
@@ -143,4 +233,4 @@ export function getIsracardVendorInfo(): VendorInfo {
     analyzeFile: analyzeIsracardFile,
     isVendorFile: isIsracardFile
   };
-} 
+}

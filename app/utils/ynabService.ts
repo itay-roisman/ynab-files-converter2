@@ -142,6 +142,16 @@ export class YNABService {
     }
   }
 
+  async getAccountDetails(budgetId: string, accountId: string) {
+    try {
+      const response = await this.fetchYNAB(`/budgets/${budgetId}/accounts/${accountId}`);
+      return response.data.account;
+    } catch (error) {
+      console.error('Error fetching account details:', error);
+      throw error;
+    }
+  }
+
   async createTransactions(budgetId: string, transactions: YNABTransaction[]) {
     // Validate transactions
     const validTransactions = transactions.filter(t => {
@@ -190,4 +200,4 @@ export const redirectToYNABAuthorize = () => {
   });
 
   window.location.href = `${YNAB_OAUTH_CONFIG.authUrl}?${params.toString()}`;
-}; 
+};

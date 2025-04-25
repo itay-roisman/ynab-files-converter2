@@ -64,30 +64,38 @@ export async function analyzeMaxFile(content: string | ArrayBuffer, fileName: st
   console.log('Workbook sheets:', workbook.SheetNames);
   
   const allTransactions = [];
+  let totalBalance = 0;
+  const balancesByTab = {};
   
-  // Process domestic transactions tab
-  const domesticSheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (domesticSheet) {
-    console.log('Processing domestic transactions tab');
-    const domesticTransactions = await processMaxSheet(domesticSheet);
-    allTransactions.push(...domesticTransactions);
+  // Process each tab in the workbook
+  for (const sheetName of workbook.SheetNames) {
+    console.log(`Processing tab: ${sheetName}`);
+    const sheet = workbook.Sheets[sheetName];
+    const { transactions, finalBalance } = await processMaxSheet(sheet);
+    
+    if (transactions.length > 0) {
+      allTransactions.push(...transactions);
+    }
+    
+    if (finalBalance !== null && !isNaN(finalBalance)) {
+      balancesByTab[sheetName] = finalBalance;
+      totalBalance += finalBalance;
+      console.log(`Final balance in tab ${sheetName}: ${finalBalance}`);
+    }
   }
   
-  // Process foreign transactions tab if it exists
-  const foreignSheetName = workbook.SheetNames.find(name => name.includes('חו"ל ומט"ח'));
-  if (foreignSheetName) {
-    console.log('Processing foreign transactions tab:', foreignSheetName);
-    const foreignSheet = workbook.Sheets[foreignSheetName];
-    const foreignTransactions = await processMaxSheet(foreignSheet);
-    allTransactions.push(...foreignTransactions);
-  }
+  console.log('Total balance from all tabs:', totalBalance);
+  console.log('Balances by tab:', balancesByTab);
+  console.log('Total transactions:', allTransactions.length);
   
-  console.log('\nTransactions ready for YNAB:', allTransactions);
-  
-  return allTransactions;
+  return {
+    transactions: allTransactions,
+    finalBalance: totalBalance,
+    balancesByTab: balancesByTab
+  };
 }
 
-async function processMaxSheet(sheet: XLSX.WorkSheet): Promise<any[]> {
+async function processMaxSheet(sheet: XLSX.WorkSheet): Promise<{ transactions: any[], finalBalance: number | null }> {
   const sheetJson = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
   console.log('Sheet rows count:', sheetJson.length);
   
@@ -98,7 +106,7 @@ async function processMaxSheet(sheet: XLSX.WorkSheet): Promise<any[]> {
   
   if (headersIndex === -1) {
     console.log('No transaction headers found in sheet');
-    return [];
+    return { transactions: [], finalBalance: null };
   }
   
   const transactions = [];
@@ -121,6 +129,52 @@ async function processMaxSheet(sheet: XLSX.WorkSheet): Promise<any[]> {
   
   console.log('Raw transactions found in sheet:', transactions.length);
   
+  // Extract final balance
+  let finalBalance = null;
+  
+  // Look for the "סך הכל" (total) row followed by a row with the balance amount
+  const totalRowIndex = sheetJson.findIndex(row => 
+    Array.isArray(row) && row[0] === 'סך הכל'
+  );
+  
+  if (totalRowIndex !== -1 && totalRowIndex + 1 < sheetJson.length) {
+    // The balance should be in the first cell of the next row
+    const balanceRow = sheetJson[totalRowIndex + 1];
+    if (balanceRow && balanceRow[0]) {
+      const balanceStr = String(balanceRow[0]);
+      console.log('Found balance string:', balanceStr);
+      
+      // Extract the numeric value from the string (removing ₪ symbol and any commas)
+      const matches = balanceStr.match(/[\d.,]+/);
+      if (matches) {
+        finalBalance = parseFloat(matches[0].replace(',', '.'));
+        console.log('Extracted final balance:', finalBalance);
+      }
+    }
+  } else {
+    // Alternative approach: look for a cell that contains "₪" currency symbol
+    for (let i = sheetJson.length - 1; i >= 0; i--) {
+      const row = sheetJson[i];
+      if (!row || !Array.isArray(row)) continue;
+      
+      for (let j = 0; j < row.length; j++) {
+        if (row[j] && typeof row[j] === 'string' && row[j].includes('₪')) {
+          const balanceStr = String(row[j]);
+          console.log('Found balance with ₪ symbol:', balanceStr, 'at row:', i);
+          
+          // Extract the numeric value
+          const matches = balanceStr.match(/[\d.,]+/);
+          if (matches) {
+            finalBalance = parseFloat(matches[0].replace(',', '.'));
+            console.log('Extracted final balance from currency symbol:', finalBalance);
+            i = -1; // Break out of outer loop
+            break;
+          }
+        }
+      }
+    }
+  }
+  
   const transformedTransactions = transactions.map(row => {
     const transformedRow: any = {};
     MAX_FIELD_MAPPINGS.forEach(mapping => {
@@ -141,7 +195,12 @@ async function processMaxSheet(sheet: XLSX.WorkSheet): Promise<any[]> {
   }).filter(row => row !== null);
   
   console.log('Transformed transactions in sheet:', transformedTransactions.length);
-  return transformedTransactions;
+  console.log('Final balance found in sheet:', finalBalance);
+  
+  return { 
+    transactions: transformedTransactions, 
+    finalBalance: finalBalance 
+  };
 }
 
 export function getMaxVendorInfo(): VendorInfo {
@@ -153,4 +212,4 @@ export function getMaxVendorInfo(): VendorInfo {
     analyzeFile: analyzeMaxFile,
     isVendorFile: isMaxFile
   };
-} 
+}
