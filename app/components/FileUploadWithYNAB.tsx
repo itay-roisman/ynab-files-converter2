@@ -57,6 +57,13 @@ export default function FileUploadWithYNAB() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [accountBalances, setAccountBalances] = useState<Record<string, any[]>>({});
   const [submissionComplete, setSubmissionComplete] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  // Initialize access token from localStorage
+  useEffect(() => {
+    const token = localStorage.getItem('ynab_access_token');
+    setAccessToken(token);
+  }, []);
 
   const handleConnect = () => {
     const authUrl = new URL(YNAB_OAUTH_CONFIG.authUrl);
@@ -75,32 +82,10 @@ export default function FileUploadWithYNAB() {
     setYnabService(null);
     setBudgets([]);
     setAccounts({});
+    setAccessToken(null);
   };
 
-  const accessToken = localStorage.getItem('ynab_access_token');
-
-  if (!accessToken) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.unauthorizedContainer}>
-          <h3>Connect to YNAB</h3>
-          <p className={styles.unauthorizedMessage}>
-            You need to authorize this application to access your YNAB account.
-            This will allow you to send transactions directly to your YNAB budget.
-          </p>
-          <button
-            className={styles.connectButton}
-            onClick={handleConnect}
-          >
-            Authorize with YNAB
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   useEffect(() => {
-    const accessToken = localStorage.getItem('ynab_access_token');
     if (accessToken) {
       const service = new YNABService(accessToken);
       setYnabService(service);
@@ -133,7 +118,7 @@ export default function FileUploadWithYNAB() {
           }
         });
     }
-  }, [files.length]);
+  }, [files.length, accessToken]);
 
   const analyzeFile = async (file: File): Promise<{ identifier?: string; rowCount?: number; vendorInfo?: any; transactions?: any[]; finalBalance?: number }> => {
     try {
@@ -434,6 +419,28 @@ export default function FileUploadWithYNAB() {
 
   const canSendToYNAB = files.length > 0 && files.every(file => file.budgetId && file.accountId) && !submissionComplete;
 
+  // Render unauthorized UI if no access token
+  if (!accessToken) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.unauthorizedContainer}>
+          <h3>Connect to YNAB</h3>
+          <p className={styles.unauthorizedMessage}>
+            You need to authorize this application to access your YNAB account.
+            This will allow you to send transactions directly to your YNAB budget.
+          </p>
+          <button
+            className={styles.connectButton}
+            onClick={handleConnect}
+          >
+            Authorize with YNAB
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Render authorized UI
   return (
     <div className={styles.container}>
       <div className={styles.header}>

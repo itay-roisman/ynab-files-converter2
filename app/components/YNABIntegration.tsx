@@ -18,16 +18,29 @@ interface Budget {
   first_month: string;
 }
 
+interface Account {
+  id: string;
+  name: string;
+  closed: boolean;
+}
+
 export default function YNABIntegration({ transactions = [], onSuccess, onError, identifier }: YNABIntegrationProps) {
   const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedBudget, setSelectedBudget] = useState('');
   const [selectedAccount, setSelectedAccount] = useState('');
   const [ynabService, setYnabService] = useState<YNABService | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  // Initialize access token from localStorage
+  useEffect(() => {
+    const token = localStorage.getItem('ynab_access_token');
+    setAccessToken(token);
+    console.log('Access token status:', { hasAccessToken: !!token });
+  }, []);
 
   useEffect(() => {
-    const accessToken = localStorage.getItem('ynab_access_token');
     const refreshToken = localStorage.getItem('ynab_refresh_token');
     
     if (accessToken) {
@@ -52,11 +65,12 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
             localStorage.removeItem('ynab_refresh_token');
             localStorage.removeItem('ynab_token_expiry');
             setYnabService(null);
+            setAccessToken(null);
           }
           onError?.(error);
         });
     }
-  }, [onError]);
+  }, [accessToken, onError]);
 
   useEffect(() => {
     if (selectedBudget && ynabService) {
@@ -69,6 +83,7 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
             localStorage.removeItem('ynab_refresh_token');
             localStorage.removeItem('ynab_token_expiry');
             setYnabService(null);
+            setAccessToken(null);
           }
           onError?.(error);
         });
@@ -130,15 +145,12 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
     localStorage.removeItem('ynab_refresh_token');
     localStorage.removeItem('ynab_token_expiry');
     setYnabService(null);
+    setAccessToken(null);
   };
 
-  const accessToken = localStorage.getItem('ynab_access_token');
-  console.log('Access token status:', { hasAccessToken: !!accessToken });
-
-  if (!accessToken) {
-    console.log('Rendering unauthorized state');
-    return (
-      <div className={styles.container}>
+  return (
+    <div className={styles.container}>
+      {!accessToken ? (
         <div className={styles.unauthorizedContainer}>
           <h3>Connect to YNAB</h3>
           <p className={styles.unauthorizedMessage}>
@@ -152,62 +164,60 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
             Authorize with YNAB
           </button>
         </div>
-      </div>
-    );
-  }
+      ) : (
+        <>
+          <h3>Send to YNAB</h3>
+          
+          <div className={styles.formGroup}>
+            <label htmlFor="budget">Select Budget:</label>
+            <select
+              id="budget"
+              value={selectedBudget}
+              onChange={(e) => setSelectedBudget(e.target.value)}
+              disabled={isLoading}
+            >
+              <option value="">Select a budget</option>
+              {budgets.map(budget => (
+                <option key={budget.id} value={budget.id}>
+                  {budget.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-  return (
-    <div className={styles.container}>
-      <h3>Send to YNAB</h3>
-      
-      <div className={styles.formGroup}>
-        <label htmlFor="budget">Select Budget:</label>
-        <select
-          id="budget"
-          value={selectedBudget}
-          onChange={(e) => setSelectedBudget(e.target.value)}
-          disabled={isLoading}
-        >
-          <option value="">Select a budget</option>
-          {budgets.map(budget => (
-            <option key={budget.id} value={budget.id}>
-              {budget.name}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className={styles.formGroup}>
+            <label htmlFor="account">Select Account:</label>
+            <select
+              id="account"
+              value={selectedAccount}
+              onChange={(e) => setSelectedAccount(e.target.value)}
+              disabled={!selectedBudget || isLoading}
+            >
+              <option value="">Select an account</option>
+              {accounts.filter(account => !account.closed).map(account => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <div className={styles.formGroup}>
-        <label htmlFor="account">Select Account:</label>
-        <select
-          id="account"
-          value={selectedAccount}
-          onChange={(e) => setSelectedAccount(e.target.value)}
-          disabled={!selectedBudget || isLoading}
-        >
-          <option value="">Select an account</option>
-          {accounts.filter(account => !account.closed).map(account => (
-            <option key={account.id} value={account.id}>
-              {account.name}
-            </option>
-          ))}
-        </select>
-      </div>
+          <button
+            className={styles.submitButton}
+            onClick={handleSubmit}
+            disabled={!selectedAccount || isLoading}
+          >
+            {isLoading ? 'Sending...' : 'Send to YNAB'}
+          </button>
 
-      <button
-        className={styles.submitButton}
-        onClick={handleSubmit}
-        disabled={!selectedAccount || isLoading}
-      >
-        {isLoading ? 'Sending...' : 'Send to YNAB'}
-      </button>
-
-      <button
-        className={styles.disconnectButton}
-        onClick={handleDisconnect}
-      >
-        Disconnect from YNAB
-      </button>
+          <button
+            className={styles.disconnectButton}
+            onClick={handleDisconnect}
+          >
+            Disconnect from YNAB
+          </button>
+        </>
+      )}
     </div>
   );
-} 
+}
