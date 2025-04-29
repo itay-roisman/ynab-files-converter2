@@ -47,14 +47,16 @@ export default function OAuthCallback() {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error_description || data.error || 'Failed to exchange code for token');
+          throw new Error(
+            data.error_description || data.error || 'Failed to exchange code for token'
+          );
         }
 
         // Store all token-related data
         localStorage.setItem('ynab_access_token', data.access_token);
         localStorage.setItem('ynab_refresh_token', data.refresh_token);
-        localStorage.setItem('ynab_token_expiry', (Date.now() + (data.expires_in * 1000)).toString());
-        
+        localStorage.setItem('ynab_token_expiry', (Date.now() + data.expires_in * 1000).toString());
+
         router.push('/');
       } catch (err) {
         console.error('Token exchange error:', err);
@@ -88,4 +90,4 @@ export default function OAuthCallback() {
   }
 
   return null;
-} 
+}

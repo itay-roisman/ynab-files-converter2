@@ -53,13 +53,13 @@ export class YNABService {
       const data = await response.json();
       this.accessToken = data.access_token;
       this.refreshToken = data.refresh_token;
-      this.tokenExpiry = Date.now() + (data.expires_in * 1000);
-      
+      this.tokenExpiry = Date.now() + data.expires_in * 1000;
+
       // Store the new tokens
       localStorage.setItem('ynab_access_token', this.accessToken);
       localStorage.setItem('ynab_refresh_token', this.refreshToken);
       localStorage.setItem('ynab_token_expiry', this.tokenExpiry.toString());
-      
+
       return true;
     } catch (error) {
       console.error('Error refreshing token:', error);
@@ -80,7 +80,7 @@ export class YNABService {
     const response = await fetch(`${YNAB_API_BASE}${endpoint}`, {
       ...options,
       headers: {
-        'Authorization': `Bearer ${this.accessToken}`,
+        Authorization: `Bearer ${this.accessToken}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
@@ -94,12 +94,12 @@ export class YNABService {
         const retryResponse = await fetch(`${YNAB_API_BASE}${endpoint}`, {
           ...options,
           headers: {
-            'Authorization': `Bearer ${this.accessToken}`,
+            Authorization: `Bearer ${this.accessToken}`,
             'Content-Type': 'application/json',
             ...options.headers,
           },
         });
-        
+
         if (!retryResponse.ok) {
           const errorData = await retryResponse.json();
           throw new Error(`YNAB API error: ${errorData.error?.detail || retryResponse.statusText}`);
@@ -154,7 +154,7 @@ export class YNABService {
 
   async createTransactions(budgetId: string, transactions: YNABTransaction[]) {
     // Validate transactions
-    const validTransactions = transactions.filter(t => {
+    const validTransactions = transactions.filter((t) => {
       if (!t.date || !t.payee_name || !t.account_id) return false;
       if (typeof t.amount !== 'number' || isNaN(t.amount)) return false;
       return true;
@@ -168,7 +168,7 @@ export class YNABService {
       const response = await this.fetchYNAB(`/budgets/${budgetId}/transactions`, {
         method: 'POST',
         body: JSON.stringify({
-          transactions: validTransactions.map(t => ({
+          transactions: validTransactions.map((t) => ({
             account_id: t.account_id,
             date: t.date,
             amount: t.amount,
@@ -176,9 +176,9 @@ export class YNABService {
             memo: t.memo,
             cleared: t.cleared,
             approved: t.approved,
-            import_id: `YNAB:${t.amount}:${t.date}:1`
-          }))
-        })
+            import_id: `YNAB:${t.amount}:${t.date}:1`,
+          })),
+        }),
       });
 
       return response.data;

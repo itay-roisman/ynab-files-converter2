@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader,
+        Authorization: authHeader,
       },
       body: JSON.stringify({
         grant_type: 'refresh_token',
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       console.error('Token refresh failed:', {
         status: response.status,
         statusText: response.statusText,
-        error: errorText
+        error: errorText,
       });
       throw new Error(`Failed to refresh token: ${errorText}`);
     }
@@ -41,4 +41,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}

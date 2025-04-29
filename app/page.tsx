@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
 import FileUploadWithYNAB from './components/FileUploadWithYNAB';
-import { analyzeFiles, FileAnalysis, FieldMapping } from './utils/fileAnalyzer';
+import { analyzeFiles, FieldMapping, FileAnalysis } from './utils/fileAnalyzer';
 import { YNABTransaction } from './utils/ynabService';
 import styles from './page.module.css';
 
@@ -45,7 +46,7 @@ export default function Home() {
         <p className={styles.description}>
           Upload your CSV or Excel files to convert them to YNAB format
         </p>
-        
+
         <FileUploadWithYNAB />
       </div>
     </main>

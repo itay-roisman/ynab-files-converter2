@@ -1,9 +1,10 @@
-import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { getPoalimVendorInfo } from './poalimAnalyzer';
+import * as XLSX from 'xlsx';
+
+import { getCalVendorInfo } from './calAnalyzer';
 import { getIsracardVendorInfo } from './isracardAnalyzer';
 import { getMaxVendorInfo } from './maxAnalyzer';
-import { getCalVendorInfo } from './calAnalyzer';
+import { getPoalimVendorInfo } from './poalimAnalyzer';
 
 export interface FieldMapping {
   source: string;
@@ -25,7 +26,7 @@ export interface FileAnalysis {
   vendorInfo: VendorInfo | null;
   error?: string;
   data?: any;
-  finalBalance?: number;  // Add this property to expose the final balance
+  finalBalance?: number; // Add this property to expose the final balance
   identifier: string | null;
 }
 
@@ -50,35 +51,35 @@ interface VendorConfig {
 
 // Common vendor identifiers
 const VENDOR_IDENTIFIERS: Record<string, VendorConfig> = {
-  'AMAZON': {
+  AMAZON: {
     patterns: ['AMAZON', 'AMZN', 'AMAZON.COM'],
-    confidence: 0.9
+    confidence: 0.9,
   },
-  'STARBUCKS': {
+  STARBUCKS: {
     patterns: ['STARBUCKS', 'SBUX'],
-    confidence: 0.9
+    confidence: 0.9,
   },
-  'NETFLIX': {
+  NETFLIX: {
     patterns: ['NETFLIX', 'NETFLIX.COM'],
-    confidence: 0.9
+    confidence: 0.9,
   },
-  'SPOTIFY': {
+  SPOTIFY: {
     patterns: ['SPOTIFY', 'SPOTIFY USA'],
-    confidence: 0.9
+    confidence: 0.9,
   },
-  'APPLE': {
+  APPLE: {
     patterns: ['APPLE', 'APPLE.COM', 'ITUNES'],
-    confidence: 0.9
+    confidence: 0.9,
   },
-  'GOOGLE': {
+  GOOGLE: {
     patterns: ['GOOGLE', 'GOOGLE *', 'GOOGLE.COM'],
-    confidence: 0.9
-  }
+    confidence: 0.9,
+  },
 };
 
 function findVendorInText(text: string): VendorInfo | null {
   const upperText = text.toUpperCase();
-  
+
   for (const [vendorName, info] of Object.entries(VENDOR_IDENTIFIERS)) {
     for (const pattern of info.patterns) {
       if (upperText.includes(pattern)) {
@@ -87,30 +88,33 @@ function findVendorInText(text: string): VendorInfo | null {
           confidence: info.confidence,
           uniqueIdentifiers: [pattern],
           fieldMappings: info.fieldMappings,
-          analyzeFile: info.analyzeFile
+          analyzeFile: info.analyzeFile,
         };
       }
     }
   }
-  
+
   return null;
 }
 
-function analyzeCSVContent(content: string, fileName: string): { vendorInfo: VendorInfo | null; identifier: string | null } {
+function analyzeCSVContent(
+  content: string,
+  fileName: string
+): { vendorInfo: VendorInfo | null; identifier: string | null } {
   console.log('Analyzing CSV content:', {
     fileName,
-    contentPreview: content.substring(0, 200)
+    contentPreview: content.substring(0, 200),
   });
 
   const result = Papa.parse<RowData>(content, {
     header: true,
-    skipEmptyLines: true
+    skipEmptyLines: true,
   });
 
   console.log('CSV parse result:', {
     errors: result.errors,
     fields: result.meta.fields,
-    dataPreview: result.data.slice(0, 2)
+    dataPreview: result.data.slice(0, 2),
   });
 
   if (result.errors.length > 0) {
@@ -126,7 +130,7 @@ function analyzeCSVContent(content: string, fileName: string): { vendorInfo: Ven
 
   // Look for vendor information in common columns
   const commonColumns = ['description', 'merchant', 'vendor', 'payee', 'name'];
-  
+
   for (const row of result.data) {
     for (const column of commonColumns) {
       const value = row[column];
@@ -142,7 +146,10 @@ function analyzeCSVContent(content: string, fileName: string): { vendorInfo: Ven
   return { vendorInfo: null, identifier: null };
 }
 
-function analyzeExcelContent(buffer: ArrayBuffer, fileName: string): { vendorInfo: VendorInfo | null; identifier: string | null } {
+function analyzeExcelContent(
+  buffer: ArrayBuffer,
+  fileName: string
+): { vendorInfo: VendorInfo | null; identifier: string | null } {
   const workbook = XLSX.read(buffer, { type: 'array' });
   const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
   const data = XLSX.utils.sheet_to_json<RowData>(firstSheet);
@@ -171,7 +178,7 @@ function analyzeExcelContent(buffer: ArrayBuffer, fileName: string): { vendorInf
 
   // Look for vendor information in common columns
   const commonColumns = ['description', 'merchant', 'vendor', 'payee', 'name'];
-  
+
   for (const row of data) {
     for (const column of commonColumns) {
       const value = row[column];
@@ -199,18 +206,22 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
       const analysis = analyzeCSVContent(content, file.name);
       vendorInfo = analysis.vendorInfo;
       identifier = analysis.identifier;
-      
+
       if (vendorInfo?.analyzeFile) {
         data = await vendorInfo.analyzeFile(content, file.name);
         // Extract final balance if it exists
         finalBalance = data?.finalBalance;
       }
-    } else if (file.name.toLowerCase().endsWith('.xls') || file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xlsm')) {
+    } else if (
+      file.name.toLowerCase().endsWith('.xls') ||
+      file.name.toLowerCase().endsWith('.xlsx') ||
+      file.name.toLowerCase().endsWith('.xlsm')
+    ) {
       const buffer = await file.arrayBuffer();
       const analysis = analyzeExcelContent(buffer, file.name);
       vendorInfo = analysis.vendorInfo;
       identifier = analysis.identifier;
-      
+
       if (vendorInfo?.analyzeFile) {
         data = await vendorInfo.analyzeFile(buffer, file.name);
         // Extract final balance if it exists
@@ -223,18 +234,18 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
       vendorInfo,
       data,
       finalBalance,
-      identifier
+      identifier,
     };
   } catch (error) {
     return {
       fileName: file.name,
       vendorInfo: null,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
-      identifier: null
+      identifier: null,
     };
   }
 }
 
 export async function analyzeFiles(files: File[]): Promise<FileAnalysis[]> {
-  return Promise.all(files.map(file => analyzeFile(file)));
+  return Promise.all(files.map((file) => analyzeFile(file)));
 }

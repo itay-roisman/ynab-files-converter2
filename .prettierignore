@@ -1,0 +1,17 @@
+# Builds
+.next
+out
+dist
+build
+
+# Dependencies
+node_modules
+
+# Misc
+.git
+.github
+.vscode
+*.log
+*.lock
+package-lock.json
+yarn.lock

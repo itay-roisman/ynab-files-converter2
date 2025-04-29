@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { YNABService, YNABTransaction } from '../utils/ynabService';
+import { useEffect, useState } from 'react';
+
 import { YNAB_OAUTH_CONFIG } from '../config/oauth';
+import { YNABService, YNABTransaction } from '../utils/ynabService';
 import styles from './YNABIntegration.module.css';
 
 interface YNABIntegrationProps {
@@ -24,7 +25,12 @@ interface Account {
   closed: boolean;
 }
 
-export default function YNABIntegration({ transactions = [], onSuccess, onError, identifier }: YNABIntegrationProps) {
+export default function YNABIntegration({
+  transactions = [],
+  onSuccess,
+  onError,
+  identifier,
+}: YNABIntegrationProps) {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedBudget, setSelectedBudget] = useState('');
@@ -42,12 +48,13 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
 
   useEffect(() => {
     const refreshToken = localStorage.getItem('ynab_refresh_token');
-    
+
     if (accessToken) {
       const service = new YNABService(accessToken, refreshToken || undefined);
       setYnabService(service);
-      service.getBudgets()
-        .then(budgets => {
+      service
+        .getBudgets()
+        .then((budgets) => {
           setBudgets(budgets);
           // Find the primary budget (oldest one)
           const primaryBudget = budgets.reduce((oldest: Budget | null, current: Budget) => {
@@ -58,7 +65,7 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
             setSelectedBudget(primaryBudget.id);
           }
         })
-        .catch(error => {
+        .catch((error) => {
           if (error.message === 'Authentication failed. Please reconnect to YNAB.') {
             // Clear tokens and show connect button
             localStorage.removeItem('ynab_access_token');
@@ -74,9 +81,10 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
 
   useEffect(() => {
     if (selectedBudget && ynabService) {
-      ynabService.getAccounts(selectedBudget)
+      ynabService
+        .getAccounts(selectedBudget)
         .then(setAccounts)
-        .catch(error => {
+        .catch((error) => {
           if (error.message === 'Authentication failed. Please reconnect to YNAB.') {
             // Clear tokens and show connect button
             localStorage.removeItem('ynab_access_token');
@@ -109,19 +117,21 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
 
     setIsLoading(true);
     try {
-      const transactionsWithAccount = transactions.map(t => ({
+      const transactionsWithAccount = transactions.map((t) => ({
         ...t,
-        account_id: selectedAccount
+        account_id: selectedAccount,
       }));
       await ynabService.createTransactions(selectedBudget, transactionsWithAccount);
-      
+
       // Store the identifier-account mapping
       if (identifier) {
-        const storedMappings = JSON.parse(localStorage.getItem('identifierAccountMappings') || '{}');
+        const storedMappings = JSON.parse(
+          localStorage.getItem('identifierAccountMappings') || '{}'
+        );
         storedMappings[identifier] = selectedAccount;
         localStorage.setItem('identifierAccountMappings', JSON.stringify(storedMappings));
       }
-      
+
       onSuccess?.();
     } catch (error) {
       onError?.(error instanceof Error ? error : new Error('Failed to create transactions'));
@@ -136,7 +146,7 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
     authUrl.searchParams.append('redirect_uri', YNAB_OAUTH_CONFIG.redirectUri);
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('scope', YNAB_OAUTH_CONFIG.scope);
-    
+
     window.location.href = authUrl.toString();
   };
 
@@ -154,20 +164,17 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
         <div className={styles.unauthorizedContainer}>
           <h3>Connect to YNAB</h3>
           <p className={styles.unauthorizedMessage}>
-            You need to authorize this application to access your YNAB account.
-            This will allow you to send transactions directly to your YNAB budget.
+            You need to authorize this application to access your YNAB account. This will allow you
+            to send transactions directly to your YNAB budget.
           </p>
-          <button
-            className={styles.connectButton}
-            onClick={handleConnect}
-          >
+          <button className={styles.connectButton} onClick={handleConnect}>
             Authorize with YNAB
           </button>
         </div>
       ) : (
         <>
           <h3>Send to YNAB</h3>
-          
+
           <div className={styles.formGroup}>
             <label htmlFor="budget">Select Budget:</label>
             <select
@@ -177,7 +184,7 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
               disabled={isLoading}
             >
               <option value="">Select a budget</option>
-              {budgets.map(budget => (
+              {budgets.map((budget) => (
                 <option key={budget.id} value={budget.id}>
                   {budget.name}
                 </option>
@@ -194,11 +201,13 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
               disabled={!selectedBudget || isLoading}
             >
               <option value="">Select an account</option>
-              {accounts.filter(account => !account.closed).map(account => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
+              {accounts
+                .filter((account) => !account.closed)
+                .map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -210,10 +219,7 @@ export default function YNABIntegration({ transactions = [], onSuccess, onError,
             {isLoading ? 'Sending...' : 'Send to YNAB'}
           </button>
 
-          <button
-            className={styles.disconnectButton}
-            onClick={handleDisconnect}
-          >
+          <button className={styles.disconnectButton} onClick={handleDisconnect}>
             Disconnect from YNAB
           </button>
         </>

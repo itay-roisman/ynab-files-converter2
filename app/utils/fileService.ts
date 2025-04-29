@@ -4,11 +4,11 @@ export class FileService {
   async convertFile(file: File): Promise<YNABTransaction[]> {
     const text = await file.text();
     const lines = text.split('\n');
-    
+
     // Skip header row
     const dataRows = lines.slice(1);
-    
-    return dataRows.map(row => {
+
+    return dataRows.map((row) => {
       const [date, payee, memo, amount] = row.split(',');
       return {
         date,
@@ -23,4 +23,4 @@ export class FileService {
   }
 }
 
-export const fileService = new FileService(); 
+export const fileService = new FileService();

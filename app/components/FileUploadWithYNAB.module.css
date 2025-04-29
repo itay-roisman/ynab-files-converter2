@@ -486,7 +486,7 @@
   background-color: #f8f9fa;
   border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .accountBalancesReport h3 {
@@ -550,7 +550,10 @@
   color: #666;
 }
 
-.accountBalance, .accountCleared, .fileBalance, .reconcileDiff {
+.accountBalance,
+.accountCleared,
+.fileBalance,
+.reconcileDiff {
   text-align: right;
   font-family: monospace;
   font-size: 0.95rem;

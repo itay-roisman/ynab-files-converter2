@@ -18,25 +18,25 @@ export default function FileUpload({ onAnalysisComplete }: FileUploadProps) {
     setError(null);
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'text/csv': ['.csv'],
       'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/vnd.ms-excel.sheet.macroEnabled.12': ['.xlsm']
-    }
+      'application/vnd.ms-excel.sheet.macroEnabled.12': ['.xlsm'],
+    },
   });
 
   useEffect(() => {
     async function processFiles() {
       if (files.length === 0) return;
-      
+
       try {
         setLoading(true);
         const results = await analyzeFiles(files);
         setAnalysis(results);
-        
+
         if (onAnalysisComplete) {
           onAnalysisComplete(results);
         }
@@ -53,8 +53,8 @@ export default function FileUpload({ onAnalysisComplete }: FileUploadProps) {
 
   return (
     <div className={styles.container}>
-      <div 
-        {...getRootProps()} 
+      <div
+        {...getRootProps()}
         className={`${styles.dropzone} ${isDragActive ? styles.active : ''}`}
       >
         <input {...getInputProps()} />
@@ -70,9 +70,9 @@ export default function FileUpload({ onAnalysisComplete }: FileUploadProps) {
       </div>
 
       {loading && <p className={styles.status}>Analyzing files...</p>}
-      
+
       {error && <p className={styles.error}>{error}</p>}
-      
+
       {files.length > 0 && !loading && (
         <div className={styles.fileList}>
           <h3>Selected Files:</h3>
@@ -92,24 +92,26 @@ export default function FileUpload({ onAnalysisComplete }: FileUploadProps) {
           {analysis.map((result, index) => (
             <div key={`${result.fileName}-${index}`} className={styles.analysisItem}>
               <h4>{result.fileName}</h4>
-              
+
               {result.error ? (
                 <p className={styles.error}>{result.error}</p>
               ) : (
                 <div>
                   <p>
                     <strong>Vendor:</strong> {result.vendorInfo?.name || 'Unknown'}
-                    {result.identifier && (
-                      <> ({result.identifier})</>
-                    )}
+                    {result.identifier && <> ({result.identifier})</>}
                   </p>
-                  
+
                   {result.data?.transactions && (
-                    <p><strong>Transactions:</strong> {result.data.transactions.length}</p>
+                    <p>
+                      <strong>Transactions:</strong> {result.data.transactions.length}
+                    </p>
                   )}
-                  
+
                   {result.data?.finalBalance !== undefined && (
-                    <p><strong>Final Balance:</strong> {result.data.finalBalance.toLocaleString()} ₪</p>
+                    <p>
+                      <strong>Final Balance:</strong> {result.data.finalBalance.toLocaleString()} ₪
+                    </p>
                   )}
                 </div>
               )}

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { YNABService } from '../utils/ynabService';
-import { analyzeFiles, FileAnalysis } from '../utils/fileAnalyzer';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { YNAB_OAUTH_CONFIG } from '../config/oauth';
+import { analyzeFiles, FileAnalysis } from '../utils/fileAnalyzer';
+import { YNABService } from '../utils/ynabService';
 import styles from './FileUploadWithYNAB.module.css';
 
 interface FileWithYNAB {
@@ -71,7 +72,7 @@ export default function FileUploadWithYNAB() {
     authUrl.searchParams.append('redirect_uri', YNAB_OAUTH_CONFIG.redirectUri);
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('scope', YNAB_OAUTH_CONFIG.scope);
-    
+
     window.location.href = authUrl.toString();
   };
 
@@ -89,57 +90,65 @@ export default function FileUploadWithYNAB() {
     if (accessToken) {
       const service = new YNABService(accessToken);
       setYnabService(service);
-      service.getBudgets()
-        .then(budgets => {
-          setBudgets(budgets);
-          // Find the primary budget (oldest one)
-          const primaryBudget = budgets.reduce((oldest: Budget | null, current: Budget) => {
-            if (!oldest) return current;
-            return new Date(current.first_month) < new Date(oldest.first_month) ? current : oldest;
-          }, null);
-          
-          // Load accounts for each budget
-          budgets.forEach((budget: Budget) => {
-            service.getAccounts(budget.id)
-              .then(accounts => {
-                setAccounts(prev => ({
-                  ...prev,
-                  [budget.id]: accounts
-                }));
-              });
-          });
+      service.getBudgets().then((budgets) => {
+        setBudgets(budgets);
+        // Find the primary budget (oldest one)
+        const primaryBudget = budgets.reduce((oldest: Budget | null, current: Budget) => {
+          if (!oldest) return current;
+          return new Date(current.first_month) < new Date(oldest.first_month) ? current : oldest;
+        }, null);
 
-          // If we have files, update them with the primary budget
-          if (files.length > 0 && primaryBudget) {
-            setFiles(prev => prev.map(file => ({
-              ...file,
-              budgetId: file.budgetId || primaryBudget.id
-            })));
-          }
+        // Load accounts for each budget
+        budgets.forEach((budget: Budget) => {
+          service.getAccounts(budget.id).then((accounts) => {
+            setAccounts((prev) => ({
+              ...prev,
+              [budget.id]: accounts,
+            }));
+          });
         });
+
+        // If we have files, update them with the primary budget
+        if (files.length > 0 && primaryBudget) {
+          setFiles((prev) =>
+            prev.map((file) => ({
+              ...file,
+              budgetId: file.budgetId || primaryBudget.id,
+            }))
+          );
+        }
+      });
     }
   }, [files.length, accessToken]);
 
-  const analyzeFile = async (file: File): Promise<{ identifier?: string; rowCount?: number; vendorInfo?: any; transactions?: any[]; finalBalance?: number }> => {
+  const analyzeFile = async (
+    file: File
+  ): Promise<{
+    identifier?: string;
+    rowCount?: number;
+    vendorInfo?: any;
+    transactions?: any[];
+    finalBalance?: number;
+  }> => {
     try {
       const analyses = await analyzeFiles([file]);
       const analysis = analyses[0];
       const finalBalance = analysis?.finalBalance || analysis?.data?.finalBalance;
-      
+
       console.log('File analysis result:', {
         fileName: file.name,
         vendorInfo: analysis?.vendorInfo?.name,
         finalBalanceFromTopLevel: analysis?.finalBalance,
         finalBalanceFromData: analysis?.data?.finalBalance,
-        finalBalanceUsed: finalBalance
+        finalBalanceUsed: finalBalance,
       });
-      
+
       return {
         identifier: analysis?.identifier,
         rowCount: analysis?.data?.transactions?.length,
         vendorInfo: analysis?.vendorInfo,
         transactions: analysis?.data?.transactions,
-        finalBalance: finalBalance
+        finalBalance: finalBalance,
       };
     } catch (error) {
       console.error('Error analyzing file:', error);
@@ -157,72 +166,25 @@ export default function FileUploadWithYNAB() {
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const newFiles = Array.from(e.dataTransfer.files).filter(file => 
-      file.type === 'text/csv' || 
-      file.name.endsWith('.xls') || 
-      file.name.endsWith('.xlsx') ||
-      file.name.endsWith('.xlsm')
-    );
-    
-    if (newFiles.length > 0) {
-      // Reset submission status when new files are uploaded
-      setSubmissionComplete(false);
-      setSuccess(null);
-      setAccountBalances({});
-      
-      setIsAnalyzing(true);
-      try {
-        // Get the primary budget
-        const primaryBudget = budgets.reduce((oldest: Budget | null, current: Budget) => {
-          if (!oldest) return current;
-          return new Date(current.first_month) < new Date(oldest.first_month) ? current : oldest;
-        }, null);
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
 
-        // Get stored account mappings
-        const storedMappings = JSON.parse(localStorage.getItem('identifierAccountMappings') || '{}');
-
-        // Analyze each file and create FileWithYNAB objects
-        const fileWithYNABArray = await Promise.all(newFiles.map(async file => {
-          const { identifier, rowCount, vendorInfo, transactions, finalBalance } = await analyzeFile(file);
-          const accountId = identifier ? storedMappings[identifier] : '';
-          
-          return {
-            file,
-            budgetId: primaryBudget?.id || '',
-            accountId,
-            identifier,
-            rowCount,
-            vendorInfo,
-            transactions,
-            finalBalance
-          };
-        }));
-
-        setFiles(prev => [...prev, ...fileWithYNABArray]);
-      } finally {
-        setIsAnalyzing(false);
-      }
-    }
-  }, [budgets]);
-
-  const handleSelectClick = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files).filter(file => 
-        file.type === 'text/csv' || 
-        file.name.endsWith('.xls') || 
-        file.name.endsWith('.xlsx') ||
-        file.name.endsWith('.xlsm')
+      const newFiles = Array.from(e.dataTransfer.files).filter(
+        (file) =>
+          file.type === 'text/csv' ||
+          file.name.endsWith('.xls') ||
+          file.name.endsWith('.xlsx') ||
+          file.name.endsWith('.xlsm')
       );
-      
+
       if (newFiles.length > 0) {
+        // Reset submission status when new files are uploaded
+        setSubmissionComplete(false);
+        setSuccess(null);
+        setAccountBalances({});
+
         setIsAnalyzing(true);
         try {
           // Get the primary budget
@@ -232,58 +194,125 @@ export default function FileUploadWithYNAB() {
           }, null);
 
           // Get stored account mappings
-          const storedMappings = JSON.parse(localStorage.getItem('identifierAccountMappings') || '{}');
+          const storedMappings = JSON.parse(
+            localStorage.getItem('identifierAccountMappings') || '{}'
+          );
 
           // Analyze each file and create FileWithYNAB objects
-          const fileWithYNABArray = await Promise.all(newFiles.map(async file => {
-            const { identifier, rowCount, vendorInfo, transactions, finalBalance } = await analyzeFile(file);
-            const accountId = identifier ? storedMappings[identifier] : '';
-            
-            return {
-              file,
-              budgetId: primaryBudget?.id || '',
-              accountId,
-              identifier,
-              rowCount,
-              vendorInfo,
-              transactions,
-              finalBalance
-            };
-          }));
+          const fileWithYNABArray = await Promise.all(
+            newFiles.map(async (file) => {
+              const { identifier, rowCount, vendorInfo, transactions, finalBalance } =
+                await analyzeFile(file);
+              const accountId = identifier ? storedMappings[identifier] : '';
 
-          setFiles(prev => [...prev, ...fileWithYNABArray]);
+              return {
+                file,
+                budgetId: primaryBudget?.id || '',
+                accountId,
+                identifier,
+                rowCount,
+                vendorInfo,
+                transactions,
+                finalBalance,
+              };
+            })
+          );
+
+          setFiles((prev) => [...prev, ...fileWithYNABArray]);
         } finally {
           setIsAnalyzing(false);
         }
       }
-    }
-  }, [budgets]);
+    },
+    [budgets]
+  );
+
+  const handleSelectClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) {
+        const newFiles = Array.from(e.target.files).filter(
+          (file) =>
+            file.type === 'text/csv' ||
+            file.name.endsWith('.xls') ||
+            file.name.endsWith('.xlsx') ||
+            file.name.endsWith('.xlsm')
+        );
+
+        if (newFiles.length > 0) {
+          setIsAnalyzing(true);
+          try {
+            // Get the primary budget
+            const primaryBudget = budgets.reduce((oldest: Budget | null, current: Budget) => {
+              if (!oldest) return current;
+              return new Date(current.first_month) < new Date(oldest.first_month)
+                ? current
+                : oldest;
+            }, null);
+
+            // Get stored account mappings
+            const storedMappings = JSON.parse(
+              localStorage.getItem('identifierAccountMappings') || '{}'
+            );
+
+            // Analyze each file and create FileWithYNAB objects
+            const fileWithYNABArray = await Promise.all(
+              newFiles.map(async (file) => {
+                const { identifier, rowCount, vendorInfo, transactions, finalBalance } =
+                  await analyzeFile(file);
+                const accountId = identifier ? storedMappings[identifier] : '';
+
+                return {
+                  file,
+                  budgetId: primaryBudget?.id || '',
+                  accountId,
+                  identifier,
+                  rowCount,
+                  vendorInfo,
+                  transactions,
+                  finalBalance,
+                };
+              })
+            );
+
+            setFiles((prev) => [...prev, ...fileWithYNABArray]);
+          } finally {
+            setIsAnalyzing(false);
+          }
+        }
+      }
+    },
+    [budgets]
+  );
 
   const handleBudgetChange = (index: number, budgetId: string) => {
-    setFiles(prev => {
+    setFiles((prev) => {
       const newFiles = [...prev];
       newFiles[index] = {
         ...newFiles[index],
         budgetId,
-        accountId: '' // Reset account when budget changes
+        accountId: '', // Reset account when budget changes
       };
       return newFiles;
     });
   };
 
   const handleAccountChange = (index: number, accountId: string) => {
-    setFiles(prev => {
+    setFiles((prev) => {
       const newFiles = [...prev];
       newFiles[index] = {
         ...newFiles[index],
-        accountId
+        accountId,
       };
       return newFiles;
     });
   };
 
   const handleRemoveFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const toggleFileExpansion = (index: number) => {
@@ -291,12 +320,17 @@ export default function FileUploadWithYNAB() {
   };
 
   const formatAmount = (amount: number, budgetId: string) => {
-    const budget = budgets.find(b => b.id === budgetId);
-    if (!budget) return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      currencyDisplay: 'narrowSymbol'
-    }).format(amount / 1000).replace('$', '') + ' $';
+    const budget = budgets.find((b) => b.id === budgetId);
+    if (!budget)
+      return (
+        new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          currencyDisplay: 'narrowSymbol',
+        })
+          .format(amount / 1000)
+          .replace('$', '') + ' $'
+      );
 
     const { currency_format } = budget;
     const formatter = new Intl.NumberFormat(currency_format.iso_code, {
@@ -304,7 +338,7 @@ export default function FileUploadWithYNAB() {
       currency: currency_format.iso_code,
       minimumFractionDigits: currency_format.decimal_digits,
       maximumFractionDigits: currency_format.decimal_digits,
-      currencyDisplay: 'narrowSymbol'
+      currencyDisplay: 'narrowSymbol',
     });
 
     // Remove the currency symbol from the beginning and add it to the end
@@ -317,7 +351,7 @@ export default function FileUploadWithYNAB() {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
     });
   };
 
@@ -328,7 +362,7 @@ export default function FileUploadWithYNAB() {
     }
 
     // Validate all files have budget and account selected
-    const invalidFiles = files.filter(file => !file.budgetId || !file.accountId);
+    const invalidFiles = files.filter((file) => !file.budgetId || !file.accountId);
     if (invalidFiles.length > 0) {
       setError('Please select a budget and account for all files');
       return;
@@ -341,20 +375,23 @@ export default function FileUploadWithYNAB() {
     try {
       // Group transactions by budget
       const transactionsByBudget: Record<string, any[]> = {};
-      const usedAccounts: Record<string, { budgetId: string, accountId: string, fileName: string, finalBalance?: number }> = {};
-      
-      files.forEach(file => {
+      const usedAccounts: Record<
+        string,
+        { budgetId: string; accountId: string; fileName: string; finalBalance?: number }
+      > = {};
+
+      files.forEach((file) => {
         if (file.transactions && file.budgetId && file.accountId) {
-          const transactionsWithAccount = file.transactions.map(t => ({
+          const transactionsWithAccount = file.transactions.map((t) => ({
             ...t,
-            account_id: file.accountId
+            account_id: file.accountId,
           }));
 
           if (!transactionsByBudget[file.budgetId]) {
             transactionsByBudget[file.budgetId] = [];
           }
           transactionsByBudget[file.budgetId].push(...transactionsWithAccount);
-          
+
           // Track unique accounts used for later balance fetching
           const key = `${file.budgetId}_${file.accountId}`;
           if (!usedAccounts[key]) {
@@ -362,7 +399,7 @@ export default function FileUploadWithYNAB() {
               budgetId: file.budgetId,
               accountId: file.accountId,
               fileName: file.file.name,
-              finalBalance: file.finalBalance
+              finalBalance: file.finalBalance,
             };
           }
         }
@@ -377,7 +414,7 @@ export default function FileUploadWithYNAB() {
 
       // Store account mappings for future use
       const storedMappings = JSON.parse(localStorage.getItem('identifierAccountMappings') || '{}');
-      files.forEach(file => {
+      files.forEach((file) => {
         if (file.identifier && file.accountId) {
           storedMappings[file.identifier] = file.accountId;
         }
@@ -386,7 +423,7 @@ export default function FileUploadWithYNAB() {
 
       // Fetch updated account balances
       const accountBalancesResult: Record<string, any[]> = {};
-      
+
       await Promise.all(
         Object.values(usedAccounts).map(async ({ budgetId, accountId, fileName, finalBalance }) => {
           try {
@@ -394,19 +431,22 @@ export default function FileUploadWithYNAB() {
             if (!accountBalancesResult[budgetId]) {
               accountBalancesResult[budgetId] = [];
             }
-            
+
             // Add file information to account details for reconciliation
             accountBalancesResult[budgetId].push({
               ...accountDetails,
               fileName,
-              fileBalance: finalBalance
+              fileBalance: finalBalance,
             });
           } catch (error) {
-            console.error(`Error fetching balance for account ${accountId} in budget ${budgetId}:`, error);
+            console.error(
+              `Error fetching balance for account ${accountId} in budget ${budgetId}:`,
+              error
+            );
           }
         })
       );
-      
+
       setAccountBalances(accountBalancesResult);
       setSubmissionComplete(true);
       setSuccess('Transactions successfully sent to YNAB!');
@@ -417,7 +457,10 @@ export default function FileUploadWithYNAB() {
     }
   };
 
-  const canSendToYNAB = files.length > 0 && files.every(file => file.budgetId && file.accountId) && !submissionComplete;
+  const canSendToYNAB =
+    files.length > 0 &&
+    files.every((file) => file.budgetId && file.accountId) &&
+    !submissionComplete;
 
   // Render unauthorized UI if no access token
   if (!accessToken) {
@@ -426,13 +469,10 @@ export default function FileUploadWithYNAB() {
         <div className={styles.unauthorizedContainer}>
           <h3>Connect to YNAB</h3>
           <p className={styles.unauthorizedMessage}>
-            You need to authorize this application to access your YNAB account.
-            This will allow you to send transactions directly to your YNAB budget.
+            You need to authorize this application to access your YNAB account. This will allow you
+            to send transactions directly to your YNAB budget.
           </p>
-          <button
-            className={styles.connectButton}
-            onClick={handleConnect}
-          >
+          <button className={styles.connectButton} onClick={handleConnect}>
             Authorize with YNAB
           </button>
         </div>
@@ -445,14 +485,11 @@ export default function FileUploadWithYNAB() {
     <div className={styles.container}>
       <div className={styles.header}>
         <h3>YNAB Integration</h3>
-        <button
-          className={styles.disconnectButton}
-          onClick={handleDisconnect}
-        >
+        <button className={styles.disconnectButton} onClick={handleDisconnect}>
           Disconnect from YNAB
         </button>
       </div>
-      <div 
+      <div
         className={`${styles.uploadArea} ${isDragging ? styles.dragging : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -472,11 +509,7 @@ export default function FileUploadWithYNAB() {
           <div className={styles.uploadText}>
             <p>Drag and drop your files here</p>
             <p>or</p>
-            <button 
-              type="button"
-              className={styles.selectButton}
-              onClick={handleSelectClick}
-            >
+            <button type="button" className={styles.selectButton} onClick={handleSelectClick}>
               Select Files
             </button>
           </div>
@@ -507,7 +540,7 @@ export default function FileUploadWithYNAB() {
           <h3>Account Balances Report</h3>
           <div className={styles.balancesList}>
             {Object.entries(accountBalances).map(([budgetId, accounts]) => {
-              const budget = budgets.find(b => b.id === budgetId);
+              const budget = budgets.find((b) => b.id === budgetId);
               return (
                 <div key={budgetId} className={styles.budgetBalances}>
                   <h4>{budget?.name || 'Budget'}</h4>
@@ -519,11 +552,13 @@ export default function FileUploadWithYNAB() {
                       <div className={styles.fileBalance}>File Balance</div>
                       <div className={styles.reconcileDiff}>Difference</div>
                     </div>
-                    {accounts.map(account => {
-                      const fileBalance = account.fileBalance !== undefined ? account.fileBalance * 1000 : null;
-                      const difference = fileBalance !== null ? fileBalance - account.cleared_balance : null;
+                    {accounts.map((account) => {
+                      const fileBalance =
+                        account.fileBalance !== undefined ? account.fileBalance * 1000 : null;
+                      const difference =
+                        fileBalance !== null ? fileBalance - account.cleared_balance : null;
                       const hasDifference = difference !== null && Math.abs(difference) > 0;
-                      
+
                       return (
                         <div key={account.id} className={styles.accountRow}>
                           <div className={styles.accountName}>
@@ -532,26 +567,36 @@ export default function FileUploadWithYNAB() {
                               <small>File: {account.fileName}</small>
                             </div>
                           </div>
-                          <div className={`${styles.accountBalance} ${account.balance < 0 ? styles.negative : ''}`}>
+                          <div
+                            className={`${styles.accountBalance} ${account.balance < 0 ? styles.negative : ''}`}
+                          >
                             {formatAmount(account.balance, budgetId)}
                           </div>
-                          <div className={`${styles.accountCleared} ${account.cleared_balance < 0 ? styles.negative : ''}`}>
+                          <div
+                            className={`${styles.accountCleared} ${account.cleared_balance < 0 ? styles.negative : ''}`}
+                          >
                             {formatAmount(account.cleared_balance, budgetId)}
                           </div>
                           <div className={styles.fileBalance}>
-                            {account.fileBalance !== undefined 
+                            {account.fileBalance !== undefined
                               ? formatAmount(account.fileBalance * 1000, budgetId)
                               : 'N/A'}
                           </div>
-                          <div className={`${styles.reconcileDiff} ${hasDifference ? (difference < 0 ? styles.negative : styles.positive) : ''}`}>
-                            {difference !== null 
+                          <div
+                            className={`${styles.reconcileDiff} ${hasDifference ? (difference < 0 ? styles.negative : styles.positive) : ''}`}
+                          >
+                            {difference !== null
                               ? `${hasDifference ? (difference < 0 ? '-' : '+') : ''} ${formatAmount(Math.abs(difference), budgetId)}`
                               : 'N/A'}
-                            {hasDifference && 
+                            {hasDifference && (
                               <div className={styles.reconcileNote}>
-                                <small>{difference < 0 ? 'Missing transactions in YNAB' : 'Extra transactions in YNAB'}</small>
+                                <small>
+                                  {difference < 0
+                                    ? 'Missing transactions in YNAB'
+                                    : 'Extra transactions in YNAB'}
+                                </small>
                               </div>
-                            }
+                            )}
                           </div>
                         </div>
                       );
@@ -583,7 +628,7 @@ export default function FileUploadWithYNAB() {
                   {fileWithYNAB.identifier && (
                     <div className={styles.infoIcon}>
                       <span className={styles.identifier}>{fileWithYNAB.identifier}</span>
-                      <button 
+                      <button
                         className={styles.expandButton}
                         onClick={() => toggleFileExpansion(index)}
                       >
@@ -598,7 +643,7 @@ export default function FileUploadWithYNAB() {
                     onChange={(e) => handleBudgetChange(index, e.target.value)}
                   >
                     <option value="">Select Budget</option>
-                    {budgets.map(budget => (
+                    {budgets.map((budget) => (
                       <option key={budget.id} value={budget.id}>
                         {budget.name}
                       </option>
@@ -612,25 +657,26 @@ export default function FileUploadWithYNAB() {
                     disabled={!fileWithYNAB.budgetId}
                   >
                     <option value="">Select Account</option>
-                    {fileWithYNAB.budgetId && accounts[fileWithYNAB.budgetId]?.map(account => (
-                      <option key={account.id} value={account.id}>
-                        {account.name}
-                      </option>
-                    ))}
+                    {fileWithYNAB.budgetId &&
+                      accounts[fileWithYNAB.budgetId]?.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div className={styles.balance}>
-                  {(fileWithYNAB.vendorInfo?.name === 'Bank Hapoalim' || fileWithYNAB.vendorInfo?.name === 'Isracard' || fileWithYNAB.vendorInfo?.name === 'Max') && fileWithYNAB.finalBalance && (
-                    <span className={styles.balanceAmount}>
-                      ₪{fileWithYNAB.finalBalance.toLocaleString()}
-                    </span>
-                  )}
+                  {(fileWithYNAB.vendorInfo?.name === 'Bank Hapoalim' ||
+                    fileWithYNAB.vendorInfo?.name === 'Isracard' ||
+                    fileWithYNAB.vendorInfo?.name === 'Max') &&
+                    fileWithYNAB.finalBalance && (
+                      <span className={styles.balanceAmount}>
+                        ₪{fileWithYNAB.finalBalance.toLocaleString()}
+                      </span>
+                    )}
                 </div>
                 <div className={styles.actions}>
-                  <button
-                    className={styles.removeButton}
-                    onClick={() => handleRemoveFile(index)}
-                  >
+                  <button className={styles.removeButton} onClick={() => handleRemoveFile(index)}>
                     Remove
                   </button>
                 </div>
@@ -645,21 +691,19 @@ export default function FileUploadWithYNAB() {
                     {[...fileWithYNAB.transactions]
                       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                       .map((transaction, tIndex) => (
-                      <div key={tIndex} className={styles.transactionRow}>
-                        <div className={styles.transactionDate}>
-                          {formatDate(transaction.date)}
+                        <div key={tIndex} className={styles.transactionRow}>
+                          <div className={styles.transactionDate}>
+                            {formatDate(transaction.date)}
+                          </div>
+                          <div className={styles.transactionPayee}>{transaction.payee_name}</div>
+                          <div
+                            className={`${styles.transactionAmount} ${transaction.amount < 0 ? styles.negative : ''}`}
+                          >
+                            {formatAmount(transaction.amount, fileWithYNAB.budgetId)}
+                          </div>
+                          <div className={styles.transactionMemo}>{transaction.memo}</div>
                         </div>
-                        <div className={styles.transactionPayee}>
-                          {transaction.payee_name}
-                        </div>
-                        <div className={`${styles.transactionAmount} ${transaction.amount < 0 ? styles.negative : ''}`}>
-                          {formatAmount(transaction.amount, fileWithYNAB.budgetId)}
-                        </div>
-                        <div className={styles.transactionMemo}>
-                          {transaction.memo}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 )}
               </div>
