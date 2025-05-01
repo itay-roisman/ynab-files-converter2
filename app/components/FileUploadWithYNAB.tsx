@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { YNAB_OAUTH_CONFIG } from '../config/oauth';
 import { analyzeFiles, FileAnalysis } from '../utils/fileAnalyzer';
-import { YNABService } from '../utils/ynabService';
+import { YNABService, disconnectFromYNAB } from '../utils/ynabService';
 import styles from './FileUploadWithYNAB.module.css';
 
 interface FileWithYNAB {
@@ -77,9 +77,7 @@ export default function FileUploadWithYNAB() {
   };
 
   const handleDisconnect = () => {
-    localStorage.removeItem('ynab_access_token');
-    localStorage.removeItem('ynab_refresh_token');
-    localStorage.removeItem('ynab_token_expiry');
+    disconnectFromYNAB();
     setYnabService(null);
     setBudgets([]);
     setAccounts({});
@@ -668,7 +666,8 @@ export default function FileUploadWithYNAB() {
                 <div className={styles.balance}>
                   {(fileWithYNAB.vendorInfo?.name === 'Bank Hapoalim' ||
                     fileWithYNAB.vendorInfo?.name === 'Isracard' ||
-                    fileWithYNAB.vendorInfo?.name === 'Max') &&
+                    fileWithYNAB.vendorInfo?.name === 'Max' ||
+                    fileWithYNAB.vendorInfo?.name === 'MizrahiTfahot') &&
                     fileWithYNAB.finalBalance && (
                       <span className={styles.balanceAmount}>
                         ₪{fileWithYNAB.finalBalance.toLocaleString()}

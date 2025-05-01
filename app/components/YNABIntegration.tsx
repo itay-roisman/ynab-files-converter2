@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { YNAB_OAUTH_CONFIG } from '../config/oauth';
-import { YNABService, YNABTransaction } from '../utils/ynabService';
+import { YNABService, YNABTransaction, disconnectFromYNAB } from '../utils/ynabService';
 import styles from './YNABIntegration.module.css';
 
 interface YNABIntegrationProps {
@@ -52,62 +52,55 @@ export default function YNABIntegration({
     if (accessToken) {
       const service = new YNABService(accessToken, refreshToken || undefined);
       setYnabService(service);
+
+      // Fetch budgets
       service
         .getBudgets()
-        .then((budgets) => {
-          setBudgets(budgets);
-          // Find the primary budget (oldest one)
-          const primaryBudget = budgets.reduce((oldest: Budget | null, current: Budget) => {
-            if (!oldest) return current;
-            return new Date(current.first_month) < new Date(oldest.first_month) ? current : oldest;
-          }, null);
-          if (primaryBudget) {
-            setSelectedBudget(primaryBudget.id);
-          }
+        .then((data) => {
+          setBudgets(data);
         })
         .catch((error) => {
-          if (error.message === 'Authentication failed. Please reconnect to YNAB.') {
-            // Clear tokens and show connect button
-            localStorage.removeItem('ynab_access_token');
-            localStorage.removeItem('ynab_refresh_token');
-            localStorage.removeItem('ynab_token_expiry');
-            setYnabService(null);
-            setAccessToken(null);
+          console.error('Failed to fetch budgets:', error);
+          // Handle authentication errors by disconnecting
+          if (error.message.includes('Authentication failed')) {
+            handleDisconnect();
           }
-          onError?.(error);
         });
     }
-  }, [accessToken, onError]);
+  }, [accessToken]);
 
+  // When budget is selected, fetch accounts
   useEffect(() => {
-    if (selectedBudget && ynabService) {
+    if (ynabService && selectedBudget) {
       ynabService
         .getAccounts(selectedBudget)
-        .then(setAccounts)
+        .then((data) => {
+          // Filter out closed accounts
+          const activeAccounts = data.filter((account: Account) => !account.closed);
+          setAccounts(activeAccounts);
+        })
         .catch((error) => {
-          if (error.message === 'Authentication failed. Please reconnect to YNAB.') {
-            // Clear tokens and show connect button
-            localStorage.removeItem('ynab_access_token');
-            localStorage.removeItem('ynab_refresh_token');
-            localStorage.removeItem('ynab_token_expiry');
-            setYnabService(null);
-            setAccessToken(null);
+          console.error('Failed to fetch accounts:', error);
+          // Handle authentication errors by disconnecting
+          if (error.message.includes('Authentication failed')) {
+            handleDisconnect();
           }
-          onError?.(error);
         });
+    } else {
+      setAccounts([]);
     }
-  }, [selectedBudget, ynabService, onError]);
+  }, [ynabService, selectedBudget]);
 
+  // Load account mapping from localStorage if available
   useEffect(() => {
-    if (identifier) {
-      // Try to get the previously selected account for this identifier
+    if (identifier && accounts.length > 0) {
       const storedMappings = JSON.parse(localStorage.getItem('identifierAccountMappings') || '{}');
       const storedAccountId = storedMappings[identifier];
       if (storedAccountId) {
         setSelectedAccount(storedAccountId);
       }
     }
-  }, [identifier]);
+  }, [identifier, accounts]);
 
   const handleSubmit = async () => {
     if (!ynabService || !selectedBudget || !selectedAccount) {
@@ -134,6 +127,11 @@ export default function YNABIntegration({
 
       onSuccess?.();
     } catch (error) {
+      console.error('Error creating transactions:', error);
+      // Handle authentication errors by disconnecting
+      if (error instanceof Error && error.message.includes('Authentication failed')) {
+        handleDisconnect();
+      }
       onError?.(error instanceof Error ? error : new Error('Failed to create transactions'));
     } finally {
       setIsLoading(false);
@@ -151,9 +149,7 @@ export default function YNABIntegration({
   };
 
   const handleDisconnect = () => {
-    localStorage.removeItem('ynab_access_token');
-    localStorage.removeItem('ynab_refresh_token');
-    localStorage.removeItem('ynab_token_expiry');
+    disconnectFromYNAB();
     setYnabService(null);
     setAccessToken(null);
   };
@@ -198,30 +194,29 @@ export default function YNABIntegration({
               id="account"
               value={selectedAccount}
               onChange={(e) => setSelectedAccount(e.target.value)}
-              disabled={!selectedBudget || isLoading}
+              disabled={isLoading || !selectedBudget}
             >
               <option value="">Select an account</option>
-              {accounts
-                .filter((account) => !account.closed)
-                .map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
             </select>
           </div>
 
-          <button
-            className={styles.submitButton}
-            onClick={handleSubmit}
-            disabled={!selectedAccount || isLoading}
-          >
-            {isLoading ? 'Sending...' : 'Send to YNAB'}
-          </button>
-
-          <button className={styles.disconnectButton} onClick={handleDisconnect}>
-            Disconnect from YNAB
-          </button>
+          <div className={styles.actionsContainer}>
+            <button
+              className={styles.submitButton}
+              onClick={handleSubmit}
+              disabled={isLoading || !selectedBudget || !selectedAccount}
+            >
+              {isLoading ? 'Sending...' : 'Send to YNAB'}
+            </button>
+            <button className={styles.disconnectButton} onClick={handleDisconnect}>
+              Disconnect
+            </button>
+          </div>
         </>
       )}
     </div>

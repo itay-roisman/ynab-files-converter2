@@ -5,6 +5,7 @@ import { getCalVendorInfo } from './calAnalyzer';
 import { getIsracardVendorInfo } from './isracardAnalyzer';
 import { getMaxVendorInfo } from './maxAnalyzer';
 import { getPoalimVendorInfo } from './poalimAnalyzer';
+import { getMizrahiTfahotVendorInfo } from './mizrahiTfahotAnalyzer';
 
 export interface FieldMapping {
   source: string;
@@ -174,6 +175,13 @@ function analyzeExcelContent(
   const maxIdentifier = maxVendorInfo.isVendorFile?.(fileName, firstSheet);
   if (maxIdentifier) {
     return { vendorInfo: maxVendorInfo, identifier: maxIdentifier };
+  }
+
+  // Check if this is a MIZRAHI TFAHOT file
+  const mizrahiTfahotVendorInfo = getMizrahiTfahotVendorInfo();
+  const mizrahiTfahotIdentifier = mizrahiTfahotVendorInfo.isVendorFile?.(fileName, firstSheet);
+  if (mizrahiTfahotIdentifier) {
+    return { vendorInfo: mizrahiTfahotVendorInfo, identifier: mizrahiTfahotIdentifier };
   }
 
   // Look for vendor information in common columns

@@ -19,6 +19,13 @@ export const YNAB_OAUTH_CONFIG = {
   scope: 'read-only write-transactions',
 };
 
+// Helper function to handle disconnection
+export const disconnectFromYNAB = () => {
+  localStorage.removeItem('ynab_access_token');
+  localStorage.removeItem('ynab_refresh_token');
+  localStorage.removeItem('ynab_token_expiry');
+};
+
 export class YNABService {
   private accessToken: string;
   private refreshToken: string | null;
@@ -64,9 +71,7 @@ export class YNABService {
     } catch (error) {
       console.error('Error refreshing token:', error);
       // Clear tokens on refresh failure
-      localStorage.removeItem('ynab_access_token');
-      localStorage.removeItem('ynab_refresh_token');
-      localStorage.removeItem('ynab_token_expiry');
+      disconnectFromYNAB();
       throw error;
     }
   }
@@ -107,9 +112,7 @@ export class YNABService {
         return retryResponse.json();
       } catch (refreshError) {
         // If refresh fails, clear tokens and throw error
-        localStorage.removeItem('ynab_access_token');
-        localStorage.removeItem('ynab_refresh_token');
-        localStorage.removeItem('ynab_token_expiry');
+        disconnectFromYNAB();
         throw new Error('Authentication failed. Please reconnect to YNAB.');
       }
     }
