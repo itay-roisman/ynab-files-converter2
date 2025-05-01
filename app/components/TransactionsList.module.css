@@ -1,0 +1,55 @@
+.transactionsTable {
+  grid-column: 1 / -1;
+  margin-top: 16px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #fff;
+}
+
+.transactionsHeader {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr 2fr;
+  gap: 16px;
+  padding: 12px 16px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.transactionRow {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr 2fr;
+  gap: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #dee2e6;
+  font-size: 14px;
+}
+
+.transactionRow:last-child {
+  border-bottom: none;
+}
+
+.transactionDate {
+  color: #495057;
+}
+
+.transactionPayee {
+  color: #212529;
+  font-weight: 500;
+}
+
+.transactionAmount {
+  color: #28a745;
+  font-weight: 500;
+  text-align: right;
+}
+
+.transactionAmount.negative {
+  color: #dc3545;
+}
+
+.transactionMemo {
+  color: #6c757d;
+}
