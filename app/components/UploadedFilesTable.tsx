@@ -126,8 +126,10 @@ const UploadedFilesTable: React.FC<UploadedFilesTableProps> = ({
               {(fileWithYNAB.vendorInfo?.name === 'Bank Hapoalim' ||
                 fileWithYNAB.vendorInfo?.name === 'Isracard' ||
                 fileWithYNAB.vendorInfo?.name === 'Max' ||
+                fileWithYNAB.vendorInfo?.name === 'Cal' ||
                 fileWithYNAB.vendorInfo?.name === 'MizrahiTfahot') &&
-                fileWithYNAB.finalBalance && (
+                fileWithYNAB.finalBalance !== undefined &&
+                fileWithYNAB.finalBalance !== null && (
                   <span className={styles.balanceAmount}>
                     ₪{fileWithYNAB.finalBalance.toLocaleString()}
                   </span>

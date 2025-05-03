@@ -1,10 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import FileUploadWithYNAB from './components/FileUploadWithYNAB';
-import { analyzeFiles, FieldMapping, FileAnalysis } from './utils/fileAnalyzer';
-import { YNABTransaction } from './utils/ynabService';
 import styles from './page.module.css';
 
 interface TransformedRow {

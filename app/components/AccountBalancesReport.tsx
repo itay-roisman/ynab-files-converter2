@@ -48,8 +48,9 @@ const AccountBalancesReport: React.FC<AccountBalancesReportProps> = ({
                   <div className={styles.reconcileDiff}>Difference</div>
                 </div>
                 {accounts.map((account) => {
+                  // Don't multiply fileBalance by 1000 since it's already in milliunits from the analyzer
                   const fileBalance =
-                    account.fileBalance !== undefined ? account.fileBalance * 1000 : null;
+                    account.fileBalance !== undefined ? account.fileBalance : null;
                   const difference =
                     fileBalance !== null ? fileBalance - account.cleared_balance : null;
                   const hasDifference = difference !== null && Math.abs(difference) > 0;
@@ -74,7 +75,7 @@ const AccountBalancesReport: React.FC<AccountBalancesReportProps> = ({
                       </div>
                       <div className={styles.fileBalance}>
                         {account.fileBalance !== undefined
-                          ? formatAmount(account.fileBalance * 1000, budgetId, budgets)
+                          ? formatAmount(account.fileBalance, budgetId, budgets)
                           : 'N/A'}
                       </div>
                       <div

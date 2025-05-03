@@ -2,8 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
+import { analyzeFiles } from '../analyzers/fileAnalyzer';
 import { YNAB_OAUTH_CONFIG } from '../config/oauth';
-import { analyzeFiles } from '../utils/fileAnalyzer';
 import { disconnectFromYNAB, YNABService } from '../utils/ynabService';
 import AccountBalancesReport from './AccountBalancesReport';
 import styles from './FileUploadWithYNAB.module.css';
