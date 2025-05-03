@@ -91,7 +91,6 @@ export function isMizrahiTfahotFile(fileName: string, sheet: XLSX.WorkSheet): st
 
 // Exported for testing
 export function extractBalanceFromCell(value: any): number | null {
-  debugger;
   if (typeof value === 'number') {
     return value;
   } else if (typeof value === 'string') {
@@ -171,7 +170,6 @@ export function findBalanceInWorkbook(workbook: XLSX.WorkBook): number | null {
     }
     return null;
   } catch (error) {
-    console.error('Error finding balance in workbook:', error);
     return null;
   }
 }
@@ -212,7 +210,6 @@ export function extractTransactionsFromWorkbook(
         ) {
           headers = headersRow;
           startRow = r + 1; // Start from the next row
-          console.warn('Found headers row at:', r, 'Headers:', headers);
           break;
         }
       }
@@ -287,10 +284,8 @@ export function extractTransactionsFromWorkbook(
       }
     }
 
-    console.warn('Extracted transactions:', transactions.length);
     return transactions;
   } catch (error) {
-    console.error('Error extracting transactions:', error);
     return [];
   }
 }
@@ -307,22 +302,8 @@ export async function analyzeMizrahiTfahotFile(
     try {
       const workbook = XLSX.read(content, { type: 'array' });
 
-      // Log sheet information
-      console.table(
-        workbook.SheetNames.map((name, index) => ({
-          index,
-          name,
-          ref: workbook.Sheets[name]['!ref'] || 'N/A',
-          cells: Object.keys(workbook.Sheets[name]).filter((key) => !key.startsWith('!')).length,
-        }))
-      );
-
       // Extract identifier from the first sheet if available
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      if (firstSheet && firstSheet['C3'] && firstSheet['C3'].v) {
-        const mizrahiIdentifier = String(firstSheet['C3'].v);
-        console.warn('Mizrahi identifier from cell C3:', mizrahiIdentifier);
-      }
 
       // Find balance in workbook
       finalBalance = findBalanceInWorkbook(workbook);
@@ -330,26 +311,19 @@ export async function analyzeMizrahiTfahotFile(
       // Extract transactions
       transactions = extractTransactionsFromWorkbook(workbook);
     } catch (error) {
-      console.error('Error processing Excel file:', error);
       throw new Error('Failed to process Mizrahi Tfahot Excel file');
     }
   } else {
-    console.warn('Content is a string, expected an Excel file');
     throw new Error('Mizrahi Tfahot analyzer expects an Excel file');
   }
 
   // Transform transactions to the required format
   const transformedTransactions = transformTransactions(transactions);
 
-  console.warn('FINAL RESULT: Transformed transactions:', transformedTransactions.length);
-
   // Make absolutely sure the final balance is not null, fallback to 0 if needed
   if (finalBalance === null) {
-    console.warn('No final balance found, using default 0 value');
     finalBalance = 0;
   }
-
-  console.warn('FINAL RESULT: Final balance (original):', finalBalance);
 
   return {
     transactions: transformedTransactions,

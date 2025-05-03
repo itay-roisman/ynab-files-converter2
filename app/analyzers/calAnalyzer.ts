@@ -7,21 +7,16 @@ export const CAL_FIELD_MAPPINGS: FieldMapping[] = [
     source: 'תאריך\nעסקה',
     target: 'date',
     transform: (value: string) => {
-      console.log('Original date value:', value, 'type:', typeof value);
       if (!value || typeof value !== 'string' || !value.includes('/')) {
-        console.log('Invalid date value:', value);
         return value;
       }
       const [day, month, year] = value.split('/');
-      console.log('Date components:', { day, month, year });
       // Ensure we have all components and they are valid
       if (!day || !month || !year) {
-        console.log('Missing date components:', { day, month, year });
         return value;
       }
       // Create date string in YYYY-MM-DD format
       const formattedDate = `20${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      console.log('Formatted date:', formattedDate);
       return formattedDate;
     },
   },
@@ -75,12 +70,9 @@ export async function analyzeCalFile(
   content: string | ArrayBuffer,
   fileName: string
 ): Promise<any> {
-  console.log('Starting Cal file analysis for:', fileName);
-
   if (typeof content === 'string') throw new Error('Cal analyzer only supports Excel files');
 
   const workbook = XLSX.read(content, { type: 'array' });
-  console.log('Workbook sheets:', workbook.SheetNames);
 
   const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
   const sheetJson = XLSX.utils.sheet_to_json<string[]>(firstSheet, {

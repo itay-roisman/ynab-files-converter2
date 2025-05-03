@@ -5,7 +5,6 @@ import { getCalVendorInfo } from './calAnalyzer';
 import { getIsracardVendorInfo } from './isracardAnalyzer';
 import { getMaxVendorInfo } from './maxAnalyzer';
 import { getMizrahiTfahotVendorInfo } from './mizrahiTfahotAnalyzer';
-import { getPoalimVendorInfo } from './poalimAnalyzer';
 
 export interface FieldMapping {
   source: string;
@@ -98,71 +97,63 @@ function findVendorInText(text: string): VendorInfo | null {
   return null;
 }
 
-function analyzeCSVContent(
+export async function analyzeCSVContent(
   content: string,
   fileName: string
-): { vendorInfo: VendorInfo | null; identifier: string | null } {
-  console.log('Analyzing CSV content:', {
-    fileName,
-    contentPreview: content.substring(0, 200),
-  });
+): Promise<AnalysisResult> {
+  // Remove BOM if present
+  const contentWithoutBOM = content.replace(/^\uFEFF/, '');
 
-  const result = Papa.parse<RowData>(content, {
-    header: true,
-    skipEmptyLines: true,
-  });
+  const detectedDelimiter = detectDelimiter(contentWithoutBOM);
 
-  console.log('CSV parse result:', {
-    errors: result.errors,
-    fields: result.meta.fields,
-    dataPreview: result.data.slice(0, 2),
-  });
-
-  if (result.errors.length > 0) {
-    return { vendorInfo: null, identifier: null };
+  let results: any[] = [];
+  try {
+    results = Papa.parse(contentWithoutBOM, {
+      header: true,
+      skipEmptyLines: true,
+      delimiter: detectedDelimiter,
+    }).data;
+  } catch (error) {
+    throw new Error(
+      `Failed to parse CSV file: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 
-  // Check if this is a POALIM file
-  const poalimVendorInfo = getPoalimVendorInfo();
-  const poalimIdentifier = poalimVendorInfo.isVendorFile?.(fileName, result.meta.fields || []);
-  if (poalimIdentifier) {
-    return { vendorInfo: poalimVendorInfo, identifier: poalimIdentifier };
-  }
+  // Fallback to parsing without headers if we got very few results
+  if (results.length < 2) {
+    try {
+      const noHeaderResults = Papa.parse(contentWithoutBOM, {
+        header: false,
+        skipEmptyLines: true,
+        delimiter: detectedDelimiter,
+      }).data;
 
-  // Check if this is a CAL file
-  const calVendorInfo = getCalVendorInfo();
-  // For CSV files, we need to pass an array of headers for the isCalFile function
-  const isCalCSV =
-    fileName.includes('מאסטרקארד') ||
-    fileName.includes('ויזה') ||
-    fileName.includes('כאל') ||
-    fileName.startsWith('פירוט חיובים לכרטיס');
-
-  if (isCalCSV) {
-    // Convert field names to array for isCalFile check
-    const fieldsArray = result.meta.fields || [];
-    const calIdentifier = calVendorInfo.isVendorFile?.(fileName, fieldsArray);
-    if (calIdentifier) {
-      return { vendorInfo: calVendorInfo, identifier: calIdentifier };
-    }
-  }
-
-  // Look for vendor information in common columns
-  const commonColumns = ['description', 'merchant', 'vendor', 'payee', 'name'];
-
-  for (const row of result.data) {
-    for (const column of commonColumns) {
-      const value = row[column];
-      if (value && typeof value === 'string') {
-        const vendorInfo = findVendorInText(value);
-        if (vendorInfo) {
-          return { vendorInfo, identifier: value };
-        }
+      // If we have at least a header and a row
+      if (noHeaderResults.length >= 2) {
+        const headers = noHeaderResults[0];
+        results = noHeaderResults.slice(1).map((row) => {
+          const obj: Record<string, any> = {};
+          headers.forEach((header: string, i: number) => {
+            obj[header] = row[i];
+          });
+          return obj;
+        });
       }
+    } catch (error) {
+      // Still failed, just continue with the original results
     }
   }
 
-  return { vendorInfo: null, identifier: null };
+  // Now try to identify the file format based on the columns
+  for (const analyzer of REGISTERED_ANALYZERS) {
+    const isMatch = analyzer.isVendorFile(fileName, results);
+    if (isMatch) {
+      return analyzer.analyzeFile(content, fileName);
+    }
+  }
+
+  // Could not determine the file format
+  throw new Error('Unknown file format. Could not determine bank or credit card format.');
 }
 
 function analyzeExcelContent(
