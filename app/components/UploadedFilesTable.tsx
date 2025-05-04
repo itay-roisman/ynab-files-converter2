@@ -123,17 +123,11 @@ const UploadedFilesTable: React.FC<UploadedFilesTableProps> = ({
               </select>
             </div>
             <div className={styles.balance}>
-              {(fileWithYNAB.vendorInfo?.name === 'Bank Hapoalim' ||
-                fileWithYNAB.vendorInfo?.name === 'Isracard' ||
-                fileWithYNAB.vendorInfo?.name === 'Max' ||
-                fileWithYNAB.vendorInfo?.name === 'Cal' ||
-                fileWithYNAB.vendorInfo?.name === 'MizrahiTfahot') &&
-                fileWithYNAB.finalBalance !== undefined &&
-                fileWithYNAB.finalBalance !== null && (
-                  <span className={styles.balanceAmount}>
-                    ₪{fileWithYNAB.finalBalance.toLocaleString()}
-                  </span>
-                )}
+              {fileWithYNAB.finalBalance !== undefined && fileWithYNAB.finalBalance !== null && (
+                <span className={styles.balanceAmount}>
+                  ₪{fileWithYNAB.finalBalance.toLocaleString()}
+                </span>
+              )}
             </div>
             <div className={styles.actions}>
               <button className={styles.removeButton} onClick={() => onRemoveFile(index)}>

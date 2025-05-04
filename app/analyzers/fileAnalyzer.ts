@@ -160,7 +160,7 @@ export async function analyzeCSVContent(
   // Default return when no analyzers match
   return {
     transactions: [],
-    finalBalance: undefined
+    finalBalance: undefined,
   };
 }
 

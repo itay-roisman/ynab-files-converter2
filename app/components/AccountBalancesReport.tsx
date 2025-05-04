@@ -75,7 +75,7 @@ const AccountBalancesReport: React.FC<AccountBalancesReportProps> = ({
                       </div>
                       <div className={styles.fileBalance}>
                         {account.fileBalance !== undefined
-                          ? formatAmount(account.fileBalance, budgetId, budgets)
+                          ? formatAmount(account.fileBalance, budgetId, budgets, true)
                           : 'N/A'}
                       </div>
                       <div

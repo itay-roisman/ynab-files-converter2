@@ -1,7 +1,16 @@
 /**
  * Formats a monetary amount according to budget currency settings
+ * @param amount The monetary amount to format
+ * @param budgetId The budget ID
+ * @param budgets Array of available budgets
+ * @param isFileBalance Whether this amount represents a file balance (if true, don't divide by 1000)
  */
-export const formatAmount = (amount: number, budgetId: string, budgets: any[]) => {
+export const formatAmount = (
+  amount: number,
+  budgetId: string,
+  budgets: any[],
+  isFileBalance = false
+) => {
   const budget = budgets.find((b) => b.id === budgetId);
   if (!budget)
     return (
@@ -10,7 +19,7 @@ export const formatAmount = (amount: number, budgetId: string, budgets: any[]) =
         currency: 'USD',
         currencyDisplay: 'narrowSymbol',
       })
-        .format(amount / 1000)
+        .format(isFileBalance ? amount : amount / 1000)
         .replace('$', '') + ' $'
     );
 
@@ -24,7 +33,7 @@ export const formatAmount = (amount: number, budgetId: string, budgets: any[]) =
   });
 
   // Remove the currency symbol from the beginning and add it to the end
-  const formattedAmount = formatter.format(amount / 1000);
+  const formattedAmount = formatter.format(isFileBalance ? amount : amount / 1000);
   const currencySymbol = currency_format.currency_symbol;
   return formattedAmount.replace(currencySymbol, '').trim() + ' ' + currencySymbol;
 };
