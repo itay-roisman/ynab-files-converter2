@@ -145,7 +145,7 @@ export default function FileUploadWithYNAB() {
       });
 
       return {
-        identifier: analysis?.identifier,
+        identifier: analysis?.identifier ?? undefined,
         rowCount: analysis?.data?.transactions?.length,
         vendorInfo: analysis?.vendorInfo,
         transactions: analysis?.data?.transactions,

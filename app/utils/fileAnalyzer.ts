@@ -84,12 +84,18 @@ function findVendorInText(text: string): VendorInfo | null {
   for (const [vendorName, info] of Object.entries(VENDOR_IDENTIFIERS)) {
     for (const pattern of info.patterns) {
       if (upperText.includes(pattern)) {
+        // Skip vendors without required properties
+        if (!info.analyzeFile) {
+          continue;
+        }
+
         return {
           name: vendorName,
           confidence: info.confidence,
           uniqueIdentifiers: [pattern],
-          fieldMappings: info.fieldMappings,
+          fieldMappings: info.fieldMappings || [],
           analyzeFile: info.analyzeFile,
+          isVendorFile: () => null, // Add a default implementation
         };
       }
     }
@@ -107,7 +113,7 @@ function analyzeCSVContent(
     contentPreview: content.substring(0, 200),
   });
 
-  const result = Papa.parse<RowData>(content, {
+  const result = Papa.parse<Record<string, any>>(content, {
     header: true,
     skipEmptyLines: true,
   });
@@ -153,7 +159,7 @@ function analyzeExcelContent(
 ): { vendorInfo: VendorInfo | null; identifier: string | null } {
   const workbook = XLSX.read(buffer, { type: 'array' });
   const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-  const data = XLSX.utils.sheet_to_json<RowData>(firstSheet);
+  const data = XLSX.utils.sheet_to_json<Record<string, any>>(firstSheet);
   const headers = Object.keys(data[0] || {});
 
   // Check if this is a CAL file
@@ -189,11 +195,13 @@ function analyzeExcelContent(
 
   for (const row of data) {
     for (const column of commonColumns) {
-      const value = row[column];
-      if (value && typeof value === 'string') {
-        const vendorInfo = findVendorInText(value);
-        if (vendorInfo) {
-          return { vendorInfo, identifier: value };
+      if (column in row) {
+        const value = row[column];
+        if (value && typeof value === 'string') {
+          const vendorInfo = findVendorInText(value);
+          if (vendorInfo) {
+            return { vendorInfo, identifier: value };
+          }
         }
       }
     }

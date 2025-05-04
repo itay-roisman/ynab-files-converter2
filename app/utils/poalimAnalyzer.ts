@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import { FieldMapping, VendorInfo, RowData } from './fileAnalyzer';
+import { FieldMapping, VendorInfo } from './fileAnalyzer';
 import * as XLSX from 'xlsx';
 
 export const POALIM_FIELD_MAPPINGS: FieldMapping[] = [
@@ -31,16 +31,15 @@ export function isPoalimFile(fileName: string, headers: string[]): string | null
     fileName,
     headers,
     isShekelFile: fileName.toLowerCase().startsWith('shekel'),
-    hasPoalimHeaders:
-      headers.join() ===
-      'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,',
   });
 
   const isShekelFile = fileName.toLowerCase().startsWith('shekel');
-  const hasPoalimHeaders =
-    headers.join() === 'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,';
 
-  if (isShekelFile && hasPoalimHeaders) {
+  // More flexible header checking - make sure all required fields are present
+  const requiredHeaders = ['תאריך', 'תיאור הפעולה', 'פרטים', 'חובה', 'זכות', 'יתרה לאחר פעולה'];
+  const hasRequiredHeaders = requiredHeaders.every((header) => headers.includes(header));
+
+  if (isShekelFile && hasRequiredHeaders) {
     // Extract account number from filename (9 digits after 'shekel')
     const accountNumber = fileName.substring(6, 15);
     return accountNumber;
@@ -53,7 +52,7 @@ export async function analyzePoalimFile(
   fileName: string
 ): Promise<any> {
   if (typeof content === 'string') {
-    const result = Papa.parse<RowData>(content, {
+    const result = Papa.parse<Record<string, any>>(content, {
       header: true,
       skipEmptyLines: true,
     });
@@ -98,22 +97,31 @@ export function getPoalimVendorInfo(): VendorInfo {
     fieldMappings: POALIM_FIELD_MAPPINGS,
     analyzeFile: analyzePoalimFile,
     isVendorFile: (fileName: string, sheet: XLSX.WorkSheet) => {
-      const headers = Object.values(sheet);
-      console.log('Checking POALIM file:', {
+      // Properly extract headers from Excel sheet
+      const sheetData = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
+      // Look for header row in first few rows (some files might have metadata before headers)
+      let headerRow: string[] = [];
+      for (let i = 0; i < Math.min(5, sheetData.length); i++) {
+        const row = sheetData[i];
+        if (Array.isArray(row) && row.includes('תאריך') && row.includes('תיאור הפעולה')) {
+          headerRow = row;
+          break;
+        }
+      }
+
+      console.log('Checking POALIM Excel file:', {
         fileName,
-        headers,
+        headerRow,
         isShekelFile: fileName.toLowerCase().startsWith('shekel'),
-        hasPoalimHeaders:
-          headers.join() ===
-          'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,',
       });
 
       const isShekelFile = fileName.toLowerCase().startsWith('shekel');
-      const hasPoalimHeaders =
-        headers.join() ===
-        'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,';
 
-      if (isShekelFile && hasPoalimHeaders) {
+      // More flexible header checking
+      const requiredHeaders = ['תאריך', 'תיאור הפעולה', 'פרטים', 'חובה', 'זכות', 'יתרה לאחר פעולה'];
+      const hasRequiredHeaders = requiredHeaders.every((header) => headerRow.includes(header));
+
+      if (isShekelFile && hasRequiredHeaders) {
         // Extract account number from filename (9 digits after 'shekel')
         return fileName.substring(6, 15);
       }

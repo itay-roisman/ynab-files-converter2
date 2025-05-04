@@ -64,8 +64,12 @@ export class YNABService {
 
       // Store the new tokens
       localStorage.setItem('ynab_access_token', this.accessToken);
-      localStorage.setItem('ynab_refresh_token', this.refreshToken);
-      localStorage.setItem('ynab_token_expiry', this.tokenExpiry.toString());
+      if (this.refreshToken) {
+        localStorage.setItem('ynab_refresh_token', this.refreshToken);
+      }
+      if (this.tokenExpiry) {
+        localStorage.setItem('ynab_token_expiry', this.tokenExpiry.toString());
+      }
 
       return true;
     } catch (error) {

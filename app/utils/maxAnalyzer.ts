@@ -70,7 +70,7 @@ export async function analyzeMaxFile(
 
   const allTransactions = [];
   let totalBalance = 0;
-  const balancesByTab = {};
+  const balancesByTab: Record<string, number> = {};
 
   // Process each tab in the workbook
   for (const sheetName of workbook.SheetNames) {

@@ -27,31 +27,32 @@ export const POALIM_FIELD_MAPPINGS: FieldMapping[] = [
   },
 ];
 
-export function isPoalimFile(fileName: string, headers: string[]): string | null {
+export function isPoalimFile(fileName: string, headers: string[][]): string | null {
   console.log('Checking POALIM file:', {
     fileName,
     headers,
     isShekelFile: fileName.toLowerCase().startsWith('shekel'),
-    hasPoalimHeaders:
-      headers.join() ===
-      'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,',
   });
 
   const isShekelFile = fileName.toLowerCase().startsWith('shekel');
-  const hasPoalimHeaders =
-    headers.join() === 'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,';
+  const header = Object.keys(headers[0]);
 
-  if (isShekelFile && hasPoalimHeaders) {
-    // Extract account number from filename (9 digits after 'shekel')
-    const accountNumber = fileName.substring(6, 15);
-    return accountNumber;
+  const hasRequiredHeaders =
+    Object.keys(headers[0]).join() ===
+    'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,';
+
+  if (isShekelFile && hasRequiredHeaders) {
+    return fileName.substring(6, 15);
   }
   return null;
 }
 
-export async function analyzePoalimFile(content: string | ArrayBuffer): Promise<any> {
+export async function analyzePoalimFile(
+  content: string | ArrayBuffer,
+  fileName: string
+): Promise<any> {
   if (typeof content === 'string') {
-    const result = Papa.parse<RowData>(content, {
+    const result = Papa.parse<Record<string, any>>(content, {
       header: true,
       skipEmptyLines: true,
     });
@@ -95,27 +96,6 @@ export function getPoalimVendorInfo(): VendorInfo {
     uniqueIdentifiers: ['POALIM Bank Statement'],
     fieldMappings: POALIM_FIELD_MAPPINGS,
     analyzeFile: analyzePoalimFile,
-    isVendorFile: (fileName: string, sheet: XLSX.WorkSheet) => {
-      const headers = Object.values(sheet);
-      console.log('Checking POALIM file:', {
-        fileName,
-        headers,
-        isShekelFile: fileName.toLowerCase().startsWith('shekel'),
-        hasPoalimHeaders:
-          headers.join() ===
-          'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,',
-      });
-
-      const isShekelFile = fileName.toLowerCase().startsWith('shekel');
-      const hasPoalimHeaders =
-        headers.join() ===
-        'תאריך,תיאור הפעולה,פרטים,חשבון,אסמכתא,תאריך ערך,חובה,זכות,יתרה לאחר פעולה,';
-
-      if (isShekelFile && hasPoalimHeaders) {
-        // Extract account number from filename (9 digits after 'shekel')
-        return fileName.substring(6, 15);
-      }
-      return null;
-    },
+    isVendorFile: isPoalimFile,
   };
 }
