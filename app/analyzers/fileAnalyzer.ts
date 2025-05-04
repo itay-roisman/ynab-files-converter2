@@ -156,6 +156,12 @@ export async function analyzeCSVContent(
       return analyzer.analyzeFile(content, fileName);
     }
   }
+
+  // Default return when no analyzers match
+  return {
+    transactions: [],
+    finalBalance: undefined
+  };
 }
 
 function analyzeExcelContent(
