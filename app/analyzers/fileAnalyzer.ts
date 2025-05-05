@@ -2,6 +2,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
 import { getCalVendorInfo } from './calAnalyzer';
+import { getDiscountVendorInfo } from './discountAnalyzer';
 import { getIsracardVendorInfo } from './isracardAnalyzer';
 import { getMaxVendorInfo } from './maxAnalyzer';
 import { getMizrahiTfahotVendorInfo } from './mizrahiTfahotAnalyzer';
@@ -84,18 +85,12 @@ function findVendorInText(text: string): VendorInfo | null {
   for (const [vendorName, info] of Object.entries(VENDOR_IDENTIFIERS)) {
     for (const pattern of info.patterns) {
       if (upperText.includes(pattern)) {
-        // Only return a vendor if it has both required functions
-        if (!info.analyzeFile) {
-          continue;
-        }
-
         return {
           name: vendorName,
           confidence: info.confidence,
           uniqueIdentifiers: [pattern],
-          fieldMappings: info.fieldMappings || [],
+          fieldMappings: info.fieldMappings,
           analyzeFile: info.analyzeFile,
-          isVendorFile: () => null, // Add a default implementation
         };
       }
     }
@@ -104,24 +99,23 @@ function findVendorInText(text: string): VendorInfo | null {
   return null;
 }
 
-// Helper function to detect the delimiter in CSV files
-function detectDelimiter(text: string): string {
-  const possibleDelimiters = [',', ';', '\t', '|'];
-  const counts = possibleDelimiters.map((delimiter) => {
-    const count = text
-      .split('\n')
-      .slice(0, 5)
-      .reduce((total, line) => {
-        return total + (line.match(new RegExp(delimiter, 'g')) || []).length;
-      }, 0);
-    return { delimiter, count };
-  });
+// Helper function to detect the CSV delimiter
+function detectDelimiter(csvText: string): string {
+  const firstLine = csvText.split('\n')[0];
 
-  const max = counts.reduce((max, current) => (current.count > max.count ? current : max), {
-    delimiter: ',',
-    count: 0,
-  });
-  return max.delimiter;
+  const delimiters = [',', ';', '\t', '|'];
+  let bestDelimiter = ','; // Default to comma
+  let maxCount = 0;
+
+  for (const delimiter of delimiters) {
+    const count = (firstLine.match(new RegExp(delimiter, 'g')) || []).length;
+    if (count > maxCount) {
+      maxCount = count;
+      bestDelimiter = delimiter;
+    }
+  }
+
+  return bestDelimiter;
 }
 
 export async function analyzeCSVContent(
@@ -131,9 +125,6 @@ export async function analyzeCSVContent(
   // Remove BOM if present
   const contentWithoutBOM = content.replace(/^\uFEFF/, '');
 
-  // Define analyzers to use
-  const analyzers = [getPoalimVendorInfo()];
-  // For other files, continue with normal parsing
   const detectedDelimiter = detectDelimiter(contentWithoutBOM);
 
   let results: any[] = [];
@@ -149,19 +140,41 @@ export async function analyzeCSVContent(
     );
   }
 
-  // Now try to identify the file format based on the columns for non-Poalim files
-  for (const analyzer of analyzers) {
+  // Fallback to parsing without headers if we got very few results
+  if (results.length < 2) {
+    try {
+      const noHeaderResults = Papa.parse(contentWithoutBOM, {
+        header: false,
+        skipEmptyLines: true,
+        delimiter: detectedDelimiter,
+      }).data;
+
+      // If we have at least a header and a row
+      if (noHeaderResults.length >= 2) {
+        const headers = noHeaderResults[0];
+        results = noHeaderResults.slice(1).map((row) => {
+          const obj: Record<string, any> = {};
+          headers.forEach((header: string, i: number) => {
+            obj[header] = row[i];
+          });
+          return obj;
+        });
+      }
+    } catch (error) {
+      // Still failed, just continue with the original results
+    }
+  }
+
+  // Now try to identify the file format based on the columns
+  for (const analyzer of REGISTERED_ANALYZERS) {
     const isMatch = analyzer.isVendorFile(fileName, results);
     if (isMatch) {
       return analyzer.analyzeFile(content, fileName);
     }
   }
 
-  // Default return when no analyzers match
-  return {
-    transactions: [],
-    finalBalance: undefined,
-  };
+  // Could not determine the file format
+  throw new Error('Unknown file format. Could not determine bank or credit card format.');
 }
 
 function analyzeExcelContent(
@@ -170,7 +183,7 @@ function analyzeExcelContent(
 ): { vendorInfo: VendorInfo | null; identifier: string | null } {
   const workbook = XLSX.read(buffer, { type: 'array' });
   const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-  const data = XLSX.utils.sheet_to_json<Record<string, any>>(firstSheet);
+  const data = XLSX.utils.sheet_to_json<RowData>(firstSheet);
   const headers = Object.keys(data[0] || {});
 
   // Check if this is a CAL file
@@ -201,18 +214,23 @@ function analyzeExcelContent(
     return { vendorInfo: mizrahiTfahotVendorInfo, identifier: mizrahiTfahotIdentifier };
   }
 
+  // Check if this is a DISCOUNT file
+  const discountVendorInfo = getDiscountVendorInfo();
+  const discountIdentifier = discountVendorInfo.isVendorFile?.(fileName, firstSheet);
+  if (discountIdentifier) {
+    return { vendorInfo: discountVendorInfo, identifier: discountIdentifier };
+  }
+
   // Look for vendor information in common columns
   const commonColumns = ['description', 'merchant', 'vendor', 'payee', 'name'];
 
   for (const row of data) {
     for (const column of commonColumns) {
-      if (column in row) {
-        const value = row[column];
-        if (value && typeof value === 'string') {
-          const vendorInfo = findVendorInText(value);
-          if (vendorInfo) {
-            return { vendorInfo, identifier: value };
-          }
+      const value = row[column];
+      if (value && typeof value === 'string') {
+        const vendorInfo = findVendorInText(value);
+        if (vendorInfo) {
+          return { vendorInfo, identifier: value };
         }
       }
     }
@@ -230,31 +248,16 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
     let transactions: RowData[] | undefined = undefined;
 
     if (file.name.endsWith('.csv')) {
-      try {
-        const content = await file.text();
+      const content = await file.text();
+      const analysis = analyzeCSVContent(content, file.name);
+      vendorInfo = analysis.vendorInfo;
+      identifier = analysis.identifier;
 
-        const poalimVendorInfo = getPoalimVendorInfo();
-
-        // Use the isPoalimFile method to extract the identifier
-        const headers = Papa.parse(content.substring(0, 500), {
-          header: true,
-          preview: 1,
-        }).data;
-        identifier = poalimVendorInfo.isVendorFile(file.name, headers);
-
-        // First try to analyze the content
-        const analysisResult = await analyzeCSVContent(content, file.name);
-
-        // If successful, we have the transactions and possibly final balance
-        transactions = analysisResult.transactions;
-        finalBalance = analysisResult.finalBalance;
-
-        // The data is just the analysis result
-        data = analysisResult;
-      } catch (error) {
-        throw new Error(
-          `Failed to analyze CSV file: ${error instanceof Error ? error.message : String(error)}`
-        );
+      if (vendorInfo?.analyzeFile) {
+        data = await vendorInfo.analyzeFile(content, file.name);
+        // Extract final balance and transactions
+        finalBalance = data?.finalBalance;
+        transactions = data?.transactions;
       }
     } else if (
       file.name.toLowerCase().endsWith('.xls') ||
@@ -279,14 +282,6 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
       data.transactions = transactions;
     }
 
-    // Debug info
-    console.log('File analysis completed:', {
-      fileName: file.name,
-      vendorInfo: vendorInfo?.name,
-      transactions: transactions?.length,
-      finalBalance: finalBalance,
-    });
-
     return {
       fileName: file.name,
       vendorInfo,
@@ -307,3 +302,13 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
 export async function analyzeFiles(files: File[]): Promise<FileAnalysis[]> {
   return Promise.all(files.map((file) => analyzeFile(file)));
 }
+
+// Register all analyzers here
+const REGISTERED_ANALYZERS = [
+  getCalVendorInfo(),
+  getIsracardVendorInfo(),
+  getMaxVendorInfo(),
+  getMizrahiTfahotVendorInfo(),
+  getPoalimVendorInfo(),
+  getDiscountVendorInfo(),
+];
