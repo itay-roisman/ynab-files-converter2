@@ -90,7 +90,8 @@ function findVendorInText(text: string): VendorInfo | null {
           confidence: info.confidence,
           uniqueIdentifiers: [pattern],
           fieldMappings: info.fieldMappings || [],
-          analyzeFile: info.analyzeFile,
+          analyzeFile: info.analyzeFile || (async () => ({ transactions: [] })),
+          isVendorFile: (fileName: string, sheet: any) => null,
         };
       }
     }
