@@ -4,7 +4,7 @@ import { FieldMapping, VendorInfo } from './fileAnalyzer';
 
 export const CAL_FIELD_MAPPINGS: FieldMapping[] = [
   {
-    source: 'תאריך\nעסקה',
+    source: 'תאריך עסקה',
     target: 'date',
     transform: (value: string) => {
       if (!value || typeof value !== 'string' || !value.includes('/')) {
@@ -22,7 +22,7 @@ export const CAL_FIELD_MAPPINGS: FieldMapping[] = [
   },
   { source: 'שם בית עסק', target: 'payee_name' },
   {
-    source: 'סכום\nחיוב',
+    source: 'סכום חיוב',
     target: 'amount',
     transform: (value: string) => {
       if (value === undefined || value === null || value === '') {
@@ -51,17 +51,21 @@ export const CAL_FIELD_MAPPINGS: FieldMapping[] = [
   { source: 'הערות', target: 'memo' },
 ];
 
+// Helper function to normalize header strings by removing line breaks
+function normalizeHeaderString(header: string): string {
+  return header ? header.replace(/[\n\r]+/g, ' ').trim() : header;
+}
+
 export function isCalFile(fileName: string, sheet: XLSX.WorkSheet): string | null {
   if (!fileName.startsWith('פירוט חיובים לכרטיס')) return null;
 
   const sheetJson = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
   const firstRow = sheetJson[4]; // Cal files have headers in row 5
-  const isCal = firstRow.some(
-    (cell) =>
-      cell &&
-      typeof cell === 'string' &&
-      (cell.includes('תאריך\nעסקה') || cell.includes('שם בית עסק'))
-  );
+  const isCal = firstRow.some((cell) => {
+    if (!cell || typeof cell !== 'string') return false;
+    const normalizedCell = normalizeHeaderString(cell);
+    return normalizedCell === 'תאריך עסקה' || normalizedCell === 'שם בית עסק';
+  });
 
   return isCal ? sheetJson[0][0] : null; // Return the card number from the first row
 }
@@ -97,9 +101,16 @@ export async function analyzeCalFile(
     }
   }
 
-  const headersIndex = sheetJson.findIndex(
-    (row) => Array.isArray(row) && row[0] === 'תאריך\nעסקה' && row[1] === 'שם בית עסק'
-  );
+  // Find headers row by normalizing header strings to account for possible line breaks
+  const headersIndex = sheetJson.findIndex((row) => {
+    if (!Array.isArray(row) || row.length < 2) return false;
+
+    const firstHeader = normalizeHeaderString(row[0]);
+    const secondHeader = normalizeHeaderString(row[1]);
+
+    return firstHeader === 'תאריך עסקה' && secondHeader === 'שם בית עסק';
+  });
+
   console.log('Headers found at row:', headersIndex);
 
   if (headersIndex === -1) {
@@ -108,7 +119,8 @@ export async function analyzeCalFile(
   }
 
   const transactions = [];
-  const headers = sheetJson[headersIndex];
+  // Normalize the headers by removing line breaks
+  const headers = sheetJson[headersIndex].map(normalizeHeaderString);
 
   for (let i = headersIndex + 1; i < sheetJson.length; i++) {
     const row = sheetJson[i];
@@ -127,6 +139,11 @@ export async function analyzeCalFile(
 
   console.log('Raw transactions found:', transactions.length);
 
+  // Create a mapping from normalized header to original field mapping
+  const headerMapping = new Map(
+    CAL_FIELD_MAPPINGS.map((mapping) => [normalizeHeaderString(mapping.source), mapping])
+  );
+
   const transformedTransactions = transactions.map((row) => {
     const transformedRow: any = {
       // Initialize with default values for required fields
@@ -136,9 +153,12 @@ export async function analyzeCalFile(
       memo: '', // Always initialize memo field
     };
 
-    CAL_FIELD_MAPPINGS.forEach((mapping) => {
-      const value = row[mapping.source];
-      if (value !== undefined) {
+    // Use the normalized headers for mapping
+    Object.entries(row).forEach(([key, value]) => {
+      const normalizedKey = normalizeHeaderString(key);
+      const mapping = headerMapping.get(normalizedKey);
+
+      if (mapping) {
         transformedRow[mapping.target] = mapping.transform
           ? mapping.transform(value as string)
           : value;
