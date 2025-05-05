@@ -130,7 +130,6 @@ export function transformTransactions(transactions: Record<string, string | numb
 
         const value = row[mapping.source];
         if (value !== undefined) {
-          // @ts-expect-error - We're handling various property assignments
           transaction[mapping.target] = mapping.transform
             ? mapping.transform(String(value))
             : value;

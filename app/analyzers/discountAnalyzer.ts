@@ -160,7 +160,6 @@ export function transformTransactions(transactions: Record<string, string | numb
       DISCOUNT_FIELD_MAPPINGS.forEach((mapping) => {
         const value = row[mapping.source];
         if (value !== undefined) {
-          // @ts-expect-error - We're handling various property assignments
           transaction[mapping.target] = mapping.transform
             ? mapping.transform(String(value))
             : value;
