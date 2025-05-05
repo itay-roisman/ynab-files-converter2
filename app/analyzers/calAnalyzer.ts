@@ -51,7 +51,6 @@ export const CAL_FIELD_MAPPINGS: FieldMapping[] = [
   { source: 'הערות', target: 'memo' },
 ];
 
-// Helper function to normalize header strings by removing line breaks
 function normalizeHeaderString(header: string): string {
   return header ? header.replace(/[\n\r]+/g, ' ').trim() : header;
 }
