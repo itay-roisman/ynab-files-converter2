@@ -89,7 +89,7 @@ function findVendorInText(text: string): VendorInfo | null {
           name: vendorName,
           confidence: info.confidence,
           uniqueIdentifiers: [pattern],
-          fieldMappings: info.fieldMappings,
+          fieldMappings: info.fieldMappings || [],
           analyzeFile: info.analyzeFile,
         };
       }
