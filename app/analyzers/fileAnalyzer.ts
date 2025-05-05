@@ -37,6 +37,7 @@ export interface RowData {
   amount: number;
   payee_name: string;
   memo?: string;
+  [key: string]: any; // Add index signature to allow string indexing
 }
 
 export interface AnalysisResult {
@@ -152,11 +153,11 @@ export async function analyzeCSVContent(
 
       // If we have at least a header and a row
       if (noHeaderResults.length >= 2) {
-        const headers = noHeaderResults[0];
+        const headers = noHeaderResults[0] as string[];
         results = noHeaderResults.slice(1).map((row) => {
           const obj: Record<string, any> = {};
           headers.forEach((header: string, i: number) => {
-            obj[header] = row[i];
+            obj[header] = (row as any[])[i];
           });
           return obj;
         });
@@ -250,15 +251,32 @@ export async function analyzeFile(file: File): Promise<FileAnalysis> {
 
     if (file.name.endsWith('.csv')) {
       const content = await file.text();
-      const analysis = analyzeCSVContent(content, file.name);
-      vendorInfo = analysis.vendorInfo;
-      identifier = analysis.identifier;
-
-      if (vendorInfo?.analyzeFile) {
-        data = await vendorInfo.analyzeFile(content, file.name);
-        // Extract final balance and transactions
-        finalBalance = data?.finalBalance;
-        transactions = data?.transactions;
+      
+      // Try each analyzer to find a matching vendor
+      for (const analyzer of REGISTERED_ANALYZERS) {
+        const isMatch = analyzer.isVendorFile(file.name, content);
+        if (isMatch) {
+          vendorInfo = analyzer;
+          identifier = isMatch;
+          
+          // Process the file with the matching analyzer
+          data = await analyzer.analyzeFile(content, file.name);
+          finalBalance = data?.finalBalance;
+          transactions = data?.transactions;
+          break;
+        }
+      }
+      
+      if (!vendorInfo) {
+        // Fallback to generic CSV analysis
+        try {
+          const result = await analyzeCSVContent(content, file.name);
+          data = result;
+          transactions = result.transactions;
+          finalBalance = result.finalBalance;
+        } catch (error) {
+          throw new Error(`CSV analysis failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
     } else if (
       file.name.toLowerCase().endsWith('.xls') ||
